@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>RAC Catch Returns Data Entry</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; /* Increased slightly for desktop comfort */
+            margin: 0 auto; 
+            padding: 20px; 
+            color: #333;
+            background-color: #f4f7f6;
+        }
+
+        /* Container Card */
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 { color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #2c5282; margin-top: 30px; font-size: 1.2rem; }
+
+        /* --- DESKTOP LAYOUT (Original Row) --- */
+        .row {
+            display: flex;
+            flex-wrap: wrap; /* Allows stacking on small screens */
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 15px;
+        }
+        
+        .flex-item { flex: 1; min-width: 250px; }
+
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
+
+        input, select, textarea {
+            width: 100%; 
+            padding: 10px; /* Slightly larger for mobile tap */
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box;
+            font-size: 16px; /* Prevents iOS auto-zoom */
+        }
+
+        /* --- THE NUMERIC GRID --- */
+        .numeric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Original 3-column layout */
+            gap: 15px;
+        }
+
+        /* --- MOBILE ADJUSTMENTS --- */
+        @media screen and (max-width: 600px) {
+            body { padding: 10px; }
+            .form-container { padding: 15px; }
+            
+            /* Stack the top row (Name/Date) vertically on phones */
+            .row { flex-direction: column; align-items: stretch; gap: 10px; }
+            .flex-item { max-width: 100%; }
+
+            /* Switch the 3-column grid to 1-column on phones */
+            .numeric-grid { grid-template-columns: 1fr; }
+            
+            h1 { font-size: 1.5rem; }
+        }
+
+        .checkbox-group { margin: 20px 0; display: flex; align-items: center; gap: 10px; }
+        button { 
+            background: #2c5282; 
+            color: white; 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 1.1rem;
+            font-weight: bold;
+            width: 100%; /* Mobile first button */
+        }
+
+        @media screen and (min-width: 601px) {
+            button { width: auto; } /* Original button size on desktop */
+        }
+
+        button:hover { background: #1a365d; }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <h1>Ryedale Anglers Club</h1>
+    <form id="dataForm">
+        <h2>Catch Return Data Entry</h2>
+        <div class="row">
+            <div class="flex-item">
+                <label for="rodName">Rod Name</label>
+                <input type="text" id="rodName" name="rodName" placeholder="Enter Name" required>
+            </div>
+            <div class="flex-item">
+                <label for="date">Date</label>
+                <input type="date" id="date" name="date" required>
+            </div>
+        </div>
+
+        <div class="row">
+            <div style="flex: 1;">
+                <label for="category">Beat</label>
+                <select id="category" name="category" required>
+                    <option value="">-- Select --</option>
+                    <option value="Greencliffe">Greencliffe</option>
+                    <option value="Abbey">Abbey</option>
+                    <option value="Hollins Wood">Hollins Wood</option>
+                    <option value="PackHorse Bridge">PackHorse Bridge</option>
+                    <option value="Mill Weir">Mill Weir</option>
+                    <option value="Duncombe Park">Duncombe Park</option>
+                    <option value="Helmsley Fields">Helmsley Fields</option>
+                    <option value="Sewage Farm Flats">Sewage Farm Flats</option>
+                    <option value="Upper Rye House">Upper Rye House</option>
+                    <option value="Lower Rye House">Lower Rye House</option>
+                    <option value="The Heronry">The Heronry</option>
+                    <option value="Upper Harome">Upper Harome</option>
+                    <option value="Middle Harome">Middle Harome</option>
+                    <option value="Lower Harome">Lower Harome</option>
+                    <option value="Fishing Hut & Railway Bridge">Fishing Hut & Railway Bridge</option>
+                </select>
+            </div> 
+        </div>
+
+        <h2>Your Catch Return Values</h2>
+        <div class="numeric-grid">
+            <div>
+                <label>Brown Trout - All</label>
+                <input type="number" name="v1" min="0" max="40" step="1" value="0">
+            </div>
+            <div>
+                <label>Grayling</label>
+                <input type="number" name="v2" min="0" max="40" step="1" value="0">
+            </div>
+            <div>
+                <label>Rainbow Trout</label>
+                <input type="number" name="v3" min="0" max="40" step="1" value="0">
+            </div>
+            <div>
+                <label>Other Species</label>
+                <input type="number" name="v4" min="0" max="40" step="1" value="0">
+            </div>
+            <div>
+                <label>Brown Trout Retained</label>
+                <input type="number" name="v5" min="0" max="40" step="1" value="0">
+            </div>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="verified" name="verified">
+            <label for="verified">Guest</label>
+        </div>
+
+        <h2>Observations - Comments</h2>
+        <textarea name="comments" rows="5" placeholder="Enter free-form text here..."></textarea>
+
+        <div style="margin-top: 20px;">
+            <button type="submit" id="submitBtn">Submit Record</button>
+        </div>
+    </form>
+</div>
+
+<div id="confirmModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+    <div style="background:white; padding:25px; border-radius:8px; max-width:400px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px;">Confirm Your Entry</h3>
+        <div id="summaryContent" style="font-size:0.95rem; line-height:1.6; margin:15px 0;">
+            </div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button id="finalConfirm" style="flex:2; background:#27ae60;">Confirm & Send</button>
+            <button id="cancelBtn" style="flex:1; background:#95a5a6;">Edit</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwGK4veRhVQgLvYo3B79Tasg8IeApfmqKYTKBrcZY_bJm_V6496l18askoWRlKVYFo/exec?version=test';
+    const form = document.getElementById('dataForm');
+    const modal = document.getElementById('confirmModal');
+    const summary = document.getElementById('summaryContent');
+    const finalConfirmBtn = document.getElementById('finalConfirm');
+
+    // STEP 1: Intercept the initial Submit
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        
+        // Collect data for the summary
+        const formData = new FormData(form);
+        let summaryHTML = `
+            <strong>Rod Name:</strong> ${formData.get('rodName')}<br>
+            <strong>Date:</strong> ${formData.get('date')}<br>
+            <strong>Beat:</strong> ${formData.get('category')}<br><hr>
+            <strong>Brown Trout:</strong> ${formData.get('v1')}<br>
+            <strong>Grayling:</strong> ${formData.get('v2')}<br>
+            <strong>Rainbows:</strong> ${formData.get('v3')}<br>
+            <strong>Retained:</strong> ${formData.get('v5')}<br>
+            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}
+        `;
+        
+        summary.innerHTML = summaryHTML;
+        modal.style.display = 'flex'; // Show the modal
+    });
+
+    // STEP 2: Handle the "Edit" button
+    document.getElementById('cancelBtn').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+// STEP 3: Handle the "Final Confirm" button
+    finalConfirmBtn.onclick = () => {
+        finalConfirmBtn.disabled = true;
+        finalConfirmBtn.innerText = "Verifying...";
+        
+        // IMPORTANT: We remove 'mode: no-cors' to allow the script to return the error message
+        fetch(scriptURL, { 
+            method: 'POST', 
+            body: new FormData(form)
+        })
+        .then(response => response.json()) // We expect JSON back now
+        .then(data => {
+            if (data.result === "success") {
+                alert("Success! Your catch return has been submitted.");
+                form.reset();
+                modal.style.display = 'none';
+            } else {
+                // This will now catch the "Name not found" error correctly
+                alert("** SUBMISSION FAILED **: " + data.message);
+                modal.style.display = 'none'; // Closes modal so they can fix the name
+            }
+        })
+        .catch(error => {
+            alert("Connection Error: Could not reach the server.");
+            console.error('Error!', error.message);
+        })
+        .finally(() => {
+            finalConfirmBtn.disabled = false;
+            finalConfirmBtn.innerText = "Confirm & Send";
+        });
+    };
+</script>
+
+</body>
+</html>
