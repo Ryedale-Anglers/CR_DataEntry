@@ -7,104 +7,92 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            max-width: 600px; 
+            max-width: 800px; 
             margin: 0 auto; 
-            padding: 10px; 
+            padding: 20px; 
             color: #333;
             background-color: #f4f7f6;
         }
 
         .form-container {
             background: white;
-            padding: 15px; 
+            padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        h1 { 
-            color: #1a365d; 
-            border-bottom: 2px solid #1a365d; 
-            padding-bottom: 5px; 
-            margin: 0 0 10px 0; 
-            font-size: 1.2rem; 
-        }
-        
-        h2 { 
-            color: #2c5282; 
-            margin: 15px 0 8px 0; 
-            font-size: 0.95rem; 
-            text-transform: uppercase;
-        }
+        h1 { color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #2c5282; margin-top: 30px; font-size: 1.2rem; }
 
         .row {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px; 
-            margin-bottom: 10px; 
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 15px;
         }
         
-        .flex-item { flex: 1; min-width: 140px; }
+        .flex-item { flex: 1; min-width: 250px; }
 
-        label { 
-            display: block; 
-            font-weight: bold; 
-            margin-bottom: 3px; 
-            font-size: 0.8rem; 
-        }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
 
+        /* General inputs stay full width */
         input[type="text"], input[type="date"], input[type="number"], select, textarea {
             width: 100%; 
-            padding: 6px 8px; 
+            padding: 10px; 
             border: 1px solid #ccc; 
             border-radius: 4px; 
             box-sizing: border-box;
-            font-size: 14px; 
+            font-size: 16px;
         }
 
         .numeric-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px; 
+            gap: 15px;
         }
 
-        /* Styling for the checkbox inside the grid */
-        .grid-checkbox-wrapper {
-            display: flex;
-            flex-direction: column;   /* Label on top, Box on bottom */
-            justify-content: flex-start;
-            align-items: flex-start;  /* Both aligned to the left */
-            height: 100%;
+        /* FIXED: Checkbox layout to keep 'Guest' next to the box */
+        .checkbox-group { 
+            margin: 25px 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start; 
+            gap: 12px; 
         }
 
-        .grid-checkbox-wrapper label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;       /* Matches the spacing of the other labels */
-            font-size: 0.8rem;
-        }
-
-        .grid-checkbox-wrapper input[type="checkbox"] {
+        .checkbox-group input[type="checkbox"] {
+            width: auto !important; 
             margin: 0;
-            width: 20px;              /* Slightly larger for easier tapping on mobile */
-            height: 20px;
             cursor: pointer;
+            transform: scale(1.3);
         }
 
+        .checkbox-group label {
+            margin-bottom: 0; 
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        /* FIXED: Submit button size */
         button {
             width: 100%; 
-            padding: 12px;
+            padding: 15px;
             background-color: #004a99; 
             color: white;
             border: none;
             border-radius: 4px;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 5px;
+            margin-top: 10px;
         }
 
-        @media screen and (max-width: 400px) {
-            .numeric-grid { grid-template-columns: 1fr 1fr; } 
+        button:hover { background-color: #003366; }
+
+        @media screen and (max-width: 600px) {
+            .numeric-grid { grid-template-columns: 1fr; }
+            .row { flex-direction: column; align-items: stretch; }
         }
     </style>
 </head>
@@ -113,12 +101,11 @@
 <div class="form-container">
     <h1>Ryedale Anglers Club</h1>
     <form id="dataForm">
-        <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
-        
+        <h2>Catch Return Data Entry</h2>
         <div class="row">
             <div class="flex-item">
                 <label for="rodName">Member Name</label>
-                <input type="text" id="rodName" name="rodName" placeholder="Name" required>
+                <input type="text" id="rodName" name="rodName" placeholder="Member Identifier as advised" required>
             </div>
             <div class="flex-item">
                 <label for="date">Catch Date</label>
@@ -152,10 +139,10 @@
             </div> 
         </div>
 
-        <h2>Your Catch Return</h2>
+        <h2>Your Catch Return Values</h2>
         <div class="numeric-grid">
             <div>
-                <label>BT Released</label>
+                <label>Brown Trout Catch & Release</label>
                 <input type="number" name="v1" min="0" max="40" value="0">
             </div>
             <div>
@@ -163,39 +150,41 @@
                 <input type="number" name="v2" min="0" max="40" value="0">
             </div>
             <div>
-                <label>Rainbow</label>
+                <label>Rainbow Trout</label>
                 <input type="number" name="v3" min="0" max="40" value="0">
             </div>
             <div>
-                <label>Other</label>
+                <label>Other Species</label>
                 <input type="number" name="v4" min="0" max="40" value="0">
             </div>
             <div>
-                <label>BT Retained</label>
+                <label>Brown Trout Retained</label>
                 <input type="number" name="v5" min="0" max="40" value="0">
-            </div>
-            <div class="grid-checkbox-wrapper">
-                <label for="verified">Guest?</label>
-                <input type="checkbox" id="verified" name="verified">
             </div>
         </div>
 
-        <h2>Observations</h2>
-        <textarea name="comments" rows="2" placeholder="Conditions, flies, etc..."></textarea>
+        <div class="checkbox-group">
+            <input type="checkbox" id="verified" name="verified">
+            <label for="verified">Guest Entry</label>
+        </div>
 
-        <div style="margin-top: 15px;">
+        <h2>Observations - Comments</h2>
+        <textarea name="comments" rows="4" placeholder="Water conditions, fly used, etc..."></textarea>
+
+        <div style="margin-top: 20px;">
             <button type="submit" id="submitBtn">Submit Record</button>
         </div>
     </form>
 </div>
 
 <div id="confirmModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
-    <div style="background:white; padding:20px; border-radius:8px; max-width:350px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
-        <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;">Review Entry</h3>
-        <div id="summaryContent" style="font-size:0.85rem; line-height:1.4; margin:10px 0;"></div>
-        <div style="display:flex; gap:10px; margin-top:15px;">
-            <button id="finalConfirm" style="flex:2; background:#27ae60; padding:10px;">Confirm</button>
-            <button id="cancelBtn" style="flex:1; background:#95a5a6; padding:10px;">Edit</button>
+    <div style="background:white; padding:25px; border-radius:8px; max-width:400px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px;">Review Your Entry</h3>
+        <div id="summaryContent" style="font-size:0.95rem; line-height:1.5; margin:15px 0;">
+            </div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button id="finalConfirm" style="flex:2; background:#27ae60;">Confirm & Send</button>
+            <button id="cancelBtn" style="flex:1; background:#95a5a6;">Edit</button>
         </div>
     </div>
 </div>
@@ -211,17 +200,21 @@
         e.preventDefault();
         const formData = new FormData(form);
         
+        // Build the full summary including v3, v4, and Guest status
         let summaryHTML = `
             <strong>Member:</strong> ${formData.get('rodName')}<br>
             <strong>Date:</strong> ${formData.get('date')}<br>
             <strong>Beat:</strong> ${formData.get('category')}<br>
-            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
+            <strong>Guest:</strong> ${form.verified.checked ? '<span style="color:green;font-weight:bold;">Yes</span>' : 'No'}<br>
             <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>BT (C&R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
-            <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
-            <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+            <strong>Brown Trout (All):</strong> ${formData.get('v1')}<br>
+            <strong>Grayling:</strong> ${formData.get('v2')}<br>
+            <strong>Rainbow Trout:</strong> ${formData.get('v3')}<br>
+            <strong>Other Species:</strong> ${formData.get('v4')}<br>
+            <strong>Brown Trout Retained:</strong> ${formData.get('v5')}<br>
             <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+            <strong>Observations:</strong><br>
+            <i style="font-size:0.85rem;">${formData.get('comments') || 'None'}</i>
         `;
         
         summary.innerHTML = summaryHTML;
@@ -232,24 +225,26 @@
 
     finalConfirmBtn.onclick = () => {
         finalConfirmBtn.disabled = true;
-        finalConfirmBtn.innerText = "Sending...";
+        finalConfirmBtn.innerText = "Processing...";
         
         fetch(scriptURL, { method: 'POST', body: new FormData(form) })
         .then(response => response.json())
         .then(data => {
             if (data.result === "success") {
-                alert("Success! Recorded.");
+                alert("Success! Your catch return has been recorded.");
                 form.reset();
                 modal.style.display = 'none';
             } else {
-                alert("Error: " + data.message);
+                alert("** ERROR **: " + data.message);
                 modal.style.display = 'none';
             }
         })
-        .catch(error => { alert("Connection Error."); })
+        .catch(error => {
+            alert("Connection Error: Could not reach the club database.");
+        })
         .finally(() => {
             finalConfirmBtn.disabled = false;
-            finalConfirmBtn.innerText = "Confirm";
+            finalConfirmBtn.innerText = "Confirm & Send";
         });
     };
 </script>
