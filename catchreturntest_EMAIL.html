@@ -183,8 +183,9 @@
         <h2>Observations</h2>
         <textarea name="comments" rows="2" placeholder="Conditions, flies, etc..."></textarea>
 
-        <div style="margin-top: 15px;">
-            <button type="submit" id="submitBtn">Submit Record</button>
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
+            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email Me My Data</button>
         </div>
     </form>
 </div>
@@ -201,7 +202,7 @@
 </div>
 
 <script>
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbxgBuWJG7oSqixC_NBBzvyGGlWmSy-1OQHvIrqU7zI6ZbewSypRzVB2_sgMKdNr3hUv/exec';
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxtA2m0IlbD1Q6h7bde5IrF73Eo_Pw68yHqExE5UHXnEUzHzESks4wLxMYSWtyc0kG5/exec';
     const form = document.getElementById('dataForm');
     const modal = document.getElementById('confirmModal');
     const summary = document.getElementById('summaryContent');
@@ -252,6 +253,52 @@
             finalConfirmBtn.innerText = "Confirm";
         });
     };
+    const historyBtn = document.getElementById('historyBtn');
+
+historyBtn.onclick = () => {
+        const nameInput = document.getElementById('rodName');
+        const name = nameInput.value.trim(); // Added .trim() to catch spaces-only entries
+
+        // Immediate prerequisite check
+        if (!name) {
+            alert("Prerequisite: Please enter your Member Name in the 'Member Name' field before requesting your data.");
+            nameInput.focus(); // Automatically puts the cursor in the field for the user
+            nameInput.style.borderColor = "red"; // Visual cue
+            return;
+        }
+
+        // Reset visual cue if successful
+        nameInput.style.borderColor = "#ccc";
+        
+        historyBtn.disabled = true;
+        historyBtn.innerText = "Requesting...";
+
+        fetch(`${scriptURL}?action=requestHistory&rodName=${encodeURIComponent(name)}`, {
+            method: 'GET',
+            mode: 'cors',
+            redirect: 'follow'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            if (data.result === "success") {
+                alert(data.message);
+            } else {
+                alert("Error: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            alert("Connection Error: " + error.message);
+        })
+        .finally(() => {
+            historyBtn.disabled = false;
+            historyBtn.innerText = "Email Me My Data";
+        });
+    };
+
 </script>
 
 </body>
