@@ -102,6 +102,12 @@
             cursor: pointer;
             margin-top: 5px;
         }
+        #historyBtn {
+            font-size: 14px;       /* Makes text smaller to fit more words */
+            line-height: 1.2;     /* Keeps text from looking squashed */
+            padding: 10px 5px;    /* Slightly reduces height to balance the look */
+            white-space: normal;  /* Allows text to wrap to a second line if needed */
+        }
 
         @media screen and (max-width: 400px) {
             .numeric-grid { grid-template-columns: 1fr 1fr; } 
@@ -185,7 +191,7 @@
 
         <div style="margin-top: 15px; display: flex; gap: 10px;">
             <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
-            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email Me My Data</button>
+            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email Me My Returns YTD</button>
         </div>
     </form>
 </div>
