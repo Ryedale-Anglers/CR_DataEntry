@@ -102,6 +102,12 @@
             cursor: pointer;
             margin-top: 5px;
         }
+        #historyBtn {
+            font-size: 14px;       /* Makes text smaller to fit more words */
+            line-height: 1.2;     /* Keeps text from looking squashed */
+            padding: 10px 5px;    /* Slightly reduces height to balance the look */
+            white-space: normal;  /* Allows text to wrap to a second line if needed */
+        }
 
         @media screen and (max-width: 400px) {
             .numeric-grid { grid-template-columns: 1fr 1fr; } 
@@ -155,7 +161,7 @@
         <h2>Your Catch Return</h2>
         <div class="numeric-grid">
             <div>
-                <label>BT Released</label>
+                <label>BT C&R</label>
                 <input type="number" name="v1" min="0" max="40" value="0">
             </div>
             <div>
@@ -183,8 +189,9 @@
         <h2>Observations</h2>
         <textarea name="comments" rows="2" placeholder="Conditions, flies, etc..."></textarea>
 
-        <div style="margin-top: 15px;">
-            <button type="submit" id="submitBtn">Submit Record</button>
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
+            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email Me My Returns YTD</button>
         </div>
     </form>
 </div>
@@ -201,7 +208,7 @@
 </div>
 
 <script>
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbwGK4veRhVQgLvYo3B79Tasg8IeApfmqKYTKBrcZY_bJm_V6496l18askoWRlKVYFo/exec';
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbyFBua9t6iOimoZ1Th7gkcbb0orkXMVrSaNXrs0BCegDh0d2fwUh4nOrXDrXB3ey0Q/exec';
     const form = document.getElementById('dataForm');
     const modal = document.getElementById('confirmModal');
     const summary = document.getElementById('summaryContent');
@@ -252,6 +259,52 @@
             finalConfirmBtn.innerText = "Confirm";
         });
     };
+    const historyBtn = document.getElementById('historyBtn');
+
+historyBtn.onclick = () => {
+        const nameInput = document.getElementById('rodName');
+        const name = nameInput.value.trim(); // Added .trim() to catch spaces-only entries
+
+        // Immediate prerequisite check
+        if (!name) {
+            alert("Prerequisite: Please enter your Member Name in the 'Member Name' field before requesting your data.");
+            nameInput.focus(); // Automatically puts the cursor in the field for the user
+            nameInput.style.borderColor = "red"; // Visual cue
+            return;
+        }
+
+        // Reset visual cue if successful
+        nameInput.style.borderColor = "#ccc";
+        
+        historyBtn.disabled = true;
+        historyBtn.innerText = "Requesting...";
+
+        fetch(`${scriptURL}?action=requestHistory&rodName=${encodeURIComponent(name)}`, {
+            method: 'GET',
+            mode: 'cors',
+            redirect: 'follow'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            if (data.result === "success") {
+                alert(data.message);
+            } else {
+                alert("Error: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            alert("Connection Error: " + error.message);
+        })
+        .finally(() => {
+            historyBtn.disabled = false;
+            historyBtn.innerText = "Email Me My Returns YTD";
+        });
+    };
+
 </script>
 
 </body>
