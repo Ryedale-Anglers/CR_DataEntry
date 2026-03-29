@@ -246,7 +246,17 @@
         .then(data => {
             if (data.result === "success") {
                 alert("Success! Recorded.");
-                form.reset();
+                //form.reset();
+                // Manually clear catch fields and observations
+                form.v1.value = 0;
+                form.v2.value = 0;
+                form.v3.value = 0;
+                form.v4.value = 0;
+                form.v5.value = 0;
+                form.verified.checked = false;
+                form.comments.value = "";
+                form.date.value = ""; 
+                // The 'rodName' field is NOT cleared, so it stays as typed.
                 modal.style.display = 'none';
             } else {
                 alert("Error: " + data.message);
