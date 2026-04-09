@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catch Returns Staging Table</title>
+    <style>
+        :root { --primary-blue: #6495ed; --light-blue: #D0E3FA; }
+        body { font-family: sans-serif; margin: 20px; color: #333; }
+        
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        select, input { padding: 8px; border: 1px solid var(--primary-blue); border-radius: 4px; }
+
+        table { border: medium solid var(--primary-blue); border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th { font-family: monospace; border: thin solid var(--primary-blue); padding: 12px; background-color: var(--light-blue); text-align: left; }
+        td { border: thin solid var(--primary-blue); padding: 10px; text-align: left; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        tr:hover { background: #e8edff; }
+        
+        .no-data { text-align: center; padding: 20px; color: #666; }
+        .loading { font-style: italic; color: var(--primary-blue); }
+    </style>
+</head>
+<body>
+    <h1>Ryedale Anglers Club</h1>
+    <h2>Member Commentary from Catch Returns</h2>
+
+    <div class="controls">
+        <label for="beatFilter">Filter by Beat:</label>
+        <select id="beatFilter" onchange="filterTable()">
+            <option value="all">All Beats</option>
+        </select>
+        <small id="rowCount"></small>
+    </div>
+
+    <div id="tableContainer">
+        <p class="loading">Loading data from Google Sheets...</p>
+    </div>
+
+    <script>
+        const SHEET_ID = "1QhLqiUqe9Qy5eHvDGj8k2HDtsrORytQ-KSmNAp5Sqzs";
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+        
+        let allData = [];
+
+
+    async function fetchData() {
+        try {
+            const response = await fetch(CSV_URL);
+            const csvText = await response.text();
+            
+            const rows = csvText.split('\n').map(row => {
+                return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            });
+
+            const headers = rows[0].map(h => h.trim().replace(/"/g, ''));
+            
+            const dateIdx = headers.indexOf("Date");
+            const beatIdx = headers.indexOf("Beat");
+            const commIdx = headers.indexOf("Comments");
+
+            allData = rows.slice(1)
+                .filter(row => row[commIdx] && row[commIdx].trim() !== "")
+                .map(row => ({
+                    date: row[dateIdx]?.replace(/"/g, '') || "",
+                    beat: row[beatIdx]?.replace(/"/g, '') || "",
+                    comments: row[commIdx]?.replace(/"/g, '') || ""
+                }));
+
+            // --- SORTING LOGIC ADDED HERE ---
+            allData.sort((a, b) => {
+                // Converts "YYYY-MM-DD" strings into Date objects for comparison
+                return new Date(b.date) - new Date(a.date);
+            });
+            // --------------------------------
+
+            populateFilter(allData);
+            renderTable(allData);
+        } catch (error) {
+            document.getElementById('tableContainer').innerHTML = `<p style="color:red">Error loading data.</p>`;
+            console.error(error);
+        }
+}
+
+        function populateFilter(data) {
+            const select = document.getElementById('beatFilter');
+            const beats = [...new Set(data.map(item => item.beat))].sort();
+            beats.forEach(beat => {
+                if(beat) {
+                    const opt = document.createElement('option');
+                    opt.value = beat;
+                    opt.textContent = beat;
+                    select.appendChild(opt);
+                }
+            });
+        }
+
+        function renderTable(data) {
+            if (data.length === 0) {
+                document.getElementById('tableContainer').innerHTML = '<p class="no-data">No records found matching that beat.</p>';
+                return;
+            }
+
+            let html = `<table>
+                <thead>
+                    <tr><th>Date</th><th>Beat</th><th>Comments</th></tr>
+                </thead>
+                <tbody>`;
+            
+            data.forEach(row => {
+                html += `<tr>
+                    <td>${row.date}</td>
+                    <td>${row.beat}</td>
+                    <td>${row.comments}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table>`;
+            document.getElementById('tableContainer').innerHTML = html;
+            document.getElementById('rowCount').textContent = `Showing ${data.length} entries`;
+        }
+
+        function filterTable() {
+            const val = document.getElementById('beatFilter').value;
+            const filtered = val === "all" ? allData : allData.filter(d => d.beat === val);
+            renderTable(filtered);
+        }
+
+        // Initialize
+        fetchData();
+    </script>
+</body>
+</html>
