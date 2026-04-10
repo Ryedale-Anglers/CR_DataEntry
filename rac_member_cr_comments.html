@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catch Returns Staging Table</title>
+    <title>Ryedale Anglers Club</title>
     <style>
         :root { --primary-blue: #6495ed; --light-blue: #D0E3FA; }
         body { font-family: sans-serif; margin: 20px; color: #333; }
@@ -12,23 +12,45 @@
         select, input { padding: 8px; border: 1px solid var(--primary-blue); border-radius: 4px; }
 
         table { border: medium solid var(--primary-blue); border-collapse: collapse; width: 100%; margin-top: 10px; }
-        th { font-family: monospace; border: thin solid var(--primary-blue); padding: 12px; background-color: var(--light-blue); text-align: left; }
-        td { border: thin solid var(--primary-blue); padding: 10px; text-align: left; }
+        th { font-family: monospace; border: thin solid var(--primary-blue); background-color: var(--light-blue); text-align: left; padding: 10px 5px;}
+        td { 
+            border: thin solid var(--primary-blue); 
+            font-size: 15px; 
+            padding: 8px;
+        }
         tr:nth-child(even) { background: #f9f9f9; }
         tr:hover { background: #e8edff; }
         
-        .no-data { text-align: center; padding: 20px; color: #666; }
+        .no-data { text-align: center; padding: 20px; color: #666; font-weight: bold; }
         .loading { font-style: italic; color: var(--primary-blue); }
     </style>
 </head>
 <body>
-    <h1>Ryedale Anglers Club</h1>
-    <h2>Member Commentary from Catch Returns</h2>
+    <h2>Ryedale Anglers Club</h2>
+    <h3>Members' Commentary & Catch Returns</h3>
+    <h5>2026 Trout Season April - September</h5>
 
     <div class="controls">
         <label for="beatFilter">Filter by Beat:</label>
         <select id="beatFilter" onchange="filterTable()">
             <option value="all">All Beats</option>
+            <option value="Greencliffe">Greencliffe</option>
+            <option value="Abbey">Abbey</option>
+            <option value="Hollins Wood">Hollins Wood</option>
+            <option value="Packhorse Bridge">Packhorse Bridge</option>
+            <option value="Mill Weir">Mill Weir</option>
+            <option value="Duncombe Park">Duncombe Park</option>
+            <option value="Helmsley Fields">Helmsley Fields</option>
+            <option value="Fairyland">Fairyland</option>
+            <option value="Sewage Farm">Sewage Farm</option>
+            <option value="The Cut">The Cut</option>
+            <option value="Upper Rye House">Upper Rye House</option>
+            <option value="Lower Rye House">Lower Rye House</option>
+            <option value="The Heronry">The Heronry</option>
+            <option value="Upper Harome">Upper Harome</option>
+            <option value="Middle Harome">Middle Harome</option>
+            <option value="Lower Harome">Lower Harome</option>
+            <option value="Fishing Hut & Railway Bridge">Fishing Hut & Railway Bridge</option>
         </select>
         <small id="rowCount"></small>
     </div>
@@ -38,86 +60,119 @@
     </div>
 
     <script>
+        const beatOrder = {
+            "Greencliffe": 1,
+            "Abbey": 2,
+            "Hollins Wood": 3,
+            "Packhorse Bridge": 4,
+            "Mill Weir": 5,
+            "Duncombe Park": 6,
+            "Helmsley Fields": 7,
+            "Fairyland": 8,
+            "Sewage Farm": 9,
+            "The Cut": 10,
+            "Upper Rye House": 11,
+            "Lower Rye House": 12,
+            "The Heronry": 13,
+            "Upper Harome": 14,
+            "Middle Harome": 15,
+            "Lower Harome": 16,
+            "Fishing Hut & Railway Bridge": 17
+        };
         const SHEET_ID = "1QhLqiUqe9Qy5eHvDGj8k2HDtsrORytQ-KSmNAp5Sqzs";
         const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
         
         let allData = [];
 
+        async function fetchData() {
+            try {
+                const response = await fetch(CSV_URL);
+                const csvText = await response.text();
+                
+                const rows = csvText.split('\n').map(row => {
+                    return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                });
 
-    async function fetchData() {
-        try {
-            const response = await fetch(CSV_URL);
-            const csvText = await response.text();
-            
-            const rows = csvText.split('\n').map(row => {
-                return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            });
+                const headers = rows[0].map(h => h.trim().replace(/"/g, ''));
+                
+                const dateIdx = headers.indexOf("Date");
+                const beatIdx = headers.indexOf("Beat");
+                const commIdx = headers.indexOf("Comments");
+                const brownRetainedIdx = headers.indexOf("Brown Trout Retained");
+                const brownReleasedIdx = headers.indexOf("Brown Trout Released");
+                const graylingIdx = headers.indexOf("Grayling");
 
-            const headers = rows[0].map(h => h.trim().replace(/"/g, ''));
-            
-            const dateIdx = headers.indexOf("Date");
-            const beatIdx = headers.indexOf("Beat");
-            const commIdx = headers.indexOf("Comments");
-
-            allData = rows.slice(1)
-                .filter(row => row[commIdx] && row[commIdx].trim() !== "")
-                .map(row => ({
+                allData = rows.slice(1).map(row => ({
                     date: row[dateIdx]?.replace(/"/g, '') || "",
                     beat: row[beatIdx]?.replace(/"/g, '') || "",
-                    comments: row[commIdx]?.replace(/"/g, '') || ""
+                    comments: row[commIdx]?.replace(/"/g, '') || "",
+                    "Brown Trout Retained": row[brownRetainedIdx]?.replace(/"/g, '') || "",
+                    "Brown Trout Released": row[brownReleasedIdx]?.replace(/"/g, '') || "",
+                    "Grayling": row[graylingIdx]?.replace(/"/g, '') || ""
                 }));
 
-            // --- SORTING LOGIC ADDED HERE ---
-            allData.sort((a, b) => {
-                // Converts "YYYY-MM-DD" strings into Date objects for comparison
-                return new Date(b.date) - new Date(a.date);
-            });
-            // --------------------------------
+                //allData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                allData.sort((a, b) => {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
 
-            populateFilter(allData);
-            renderTable(allData);
-        } catch (error) {
-            document.getElementById('tableContainer').innerHTML = `<p style="color:red">Error loading data.</p>`;
-            console.error(error);
-        }
-}
+                    // Primary Sort: Date (Newest first)
+                    if (dateB - dateA !== 0) {
+                        return dateB - dateA;
+                    }
 
-        function populateFilter(data) {
-            const select = document.getElementById('beatFilter');
-            const beats = [...new Set(data.map(item => item.beat))].sort();
-            beats.forEach(beat => {
-                if(beat) {
-                    const opt = document.createElement('option');
-                    opt.value = beat;
-                    opt.textContent = beat;
-                    select.appendChild(opt);
-                }
-            });
+                    // Secondary Sort: River Order (Using our look-up table)
+                    // We use || 99 as a fallback in case a beat name doesn't match perfectly
+                    const orderA = beatOrder[a.beat] || 99;
+                    const orderB = beatOrder[b.beat] || 99;
+
+                    return orderA - orderB;
+                });
+
+                // Note: populateFilter(allData) is removed because the list is now static
+                renderTable(allData);
+            } catch (error) {
+                document.getElementById('tableContainer').innerHTML = `<p style="color:red">Error loading data.</p>`;
+                console.error(error);
+            }
         }
 
         function renderTable(data) {
             if (data.length === 0) {
                 document.getElementById('tableContainer').innerHTML = '<p class="no-data">No records found matching that beat.</p>';
+                document.getElementById('rowCount').textContent = `Showing 0 entries`;
                 return;
             }
 
             let html = `<table>
                 <thead>
-                    <tr><th>Date</th><th>Beat</th><th>Comments</th></tr>
+                    <tr>  
+                        <th>Beat</th>
+                        <th>Comments</th>
+                        <th style="padding: 10px 8px; text-align: right; width: 1%;">Brown Trout</th>
+                        <th style="padding: 10px 8px; text-align: right; width: 1%;">Gray ling</th>
+                        <th style="white-space: nowrap;">Catch Date</th>
+                    </tr>
                 </thead>
                 <tbody>`;
             
             data.forEach(row => {
+                const displayComment = (row.comments && row.comments.trim() !== "") 
+                    ? row.comments 
+                    : '<em style="color: #888;">No commentary provided</em>';
+
                 html += `<tr>
-                    <td>${row.date}</td>
-                    <td>${row.beat}</td>
-                    <td>${row.comments}</td>
+                    <td style="text-align: left; vertical-align: top;">${row.beat}</td>
+                    <td style="text-align: left; vertical-align: top;">${displayComment}</td>
+                    <td style="padding: 10px 8px; text-align: right; vertical-align: top;">${Number(row["Brown Trout Released"]) + Number(row["Brown Trout Retained"])}</td>
+                    <td style="padding: 10px 8px; text-align: right; vertical-align: top;">${row["Grayling"]}</td>                
+                    <td style="text-align: left; vertical-align: top; white-space: nowrap;">${row.date}</td>
                 </tr>`;
             });
 
             html += `</tbody></table>`;
             document.getElementById('tableContainer').innerHTML = html;
-            document.getElementById('rowCount').textContent = `Showing ${data.length} entries`;
+            document.getElementById('rowCount').textContent = `Showing ${data.length} catch returns`;
         }
 
         function filterTable() {
@@ -126,7 +181,6 @@
             renderTable(filtered);
         }
 
-        // Initialize
         fetchData();
     </script>
 </body>
