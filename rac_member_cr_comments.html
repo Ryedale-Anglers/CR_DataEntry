@@ -12,10 +12,21 @@
         select, input { padding: 8px; border: 1px solid var(--primary-blue); border-radius: 4px; }
 
         table { border: medium solid var(--primary-blue); border-collapse: collapse; width: 100%; margin-top: 10px; }
-        th { font-family: monospace; border: thin solid var(--primary-blue); background-color: var(--light-blue); text-align: left; padding: 10px 5px;}
+
+        /* This controls the Header row */
+        th { 
+            font-family: monospace; 
+            font-size: 12px; /* Explicitly set this to what you like */
+            border: thin solid var(--primary-blue); 
+            background-color: var(--light-blue); 
+            text-align: left; 
+            padding: 10px 5px;
+        }
+
+        /* This controls the Body rows */
         td { 
             border: thin solid var(--primary-blue); 
-            font-size: 15px; 
+            font-size: 11px; /* Reduce this to help with your mobile width issues */
             padding: 8px;
         }
         tr:nth-child(even) { background: #f9f9f9; }
@@ -23,6 +34,19 @@
         
         .no-data { text-align: center; padding: 20px; color: #666; font-weight: bold; }
         .loading { font-style: italic; color: var(--primary-blue); }
+
+        @media (max-width: 600px) {
+            h2 { font-size: 1.2rem; }
+            h3 { font-size: 1rem; }
+            
+            td, th { 
+                padding: 6px 4px; /* Tighter padding */
+                font-size: 12px;  /* Slightly smaller text */
+            }
+
+            /* Optional: Hide the Catch Date column on very small screens to save space, 
+            or just let the user scroll horizontally. Scrolling is usually better. */
+        }
     </style>
 </head>
 <body>
