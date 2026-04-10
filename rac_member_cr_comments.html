@@ -6,10 +6,17 @@
     <title>Ryedale Anglers Club</title>
     <style>
         :root { --primary-blue: #6495ed; --light-blue: #D0E3FA; }
-        body { font-family: sans-serif; margin: 20px; color: #333; }
+        body { font-family: sans-serif; margin: 10px; color: #333; }
         
         .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
-        select, input { padding: 8px; border: 1px solid var(--primary-blue); border-radius: 4px; }
+        
+        /* This targets the dropdown and the input field */
+        select, input { 
+            padding: 4px 8px; /* First number is Top/Bottom, second is Left/Right */
+            border: 1px solid var(--primary-blue); 
+            border-radius: 4px;
+            font-size: 13px; /* Slightly smaller font to match the tighter box */
+        }
 
         table { border: medium solid var(--primary-blue); border-collapse: collapse; width: 100%; margin-top: 10px; }
 
@@ -34,6 +41,11 @@
         
         .no-data { text-align: center; padding: 20px; color: #666; font-weight: bold; }
         .loading { font-style: italic; color: var(--primary-blue); }
+
+        h2, h3, h5 {
+            margin: 10px 0; /* Adjust the 5px up or down to your liking */
+            line-height: 1.2; /* Tightens the space between lines of text */
+        }
 
         @media (max-width: 600px) {
             h2 { font-size: 1.2rem; }
@@ -188,8 +200,8 @@
                 html += `<tr>
                     <td style="text-align: left; vertical-align: top;">${row.beat}</td>
                     <td style="text-align: left; vertical-align: top;">${displayComment}</td>
-                    <td style="padding: 10px 8px; text-align: right; vertical-align: top;">${Number(row["Brown Trout Released"]) + Number(row["Brown Trout Retained"])}</td>
-                    <td style="padding: 10px 8px; text-align: right; vertical-align: top;">${row["Grayling"]}</td>                
+                    <td style="text-align: right; vertical-align: top;">${Number(row["Brown Trout Released"]) + Number(row["Brown Trout Retained"])}</td>
+                    <td style="text-align: right; vertical-align: top;">${row["Grayling"]}</td>                
                     <td style="text-align: left; vertical-align: top; white-space: nowrap;">${row.date}</td>
                 </tr>`;
             });
