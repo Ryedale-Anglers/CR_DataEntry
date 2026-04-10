@@ -187,7 +187,7 @@
                         <th>Comments</th>
                         <th style="padding: 10px 8px; text-align: right; width: 1%;">Brown Trout</th>
                         <th style="padding: 10px 8px; text-align: right; width: 1%;">Gray ling</th>
-                        <th style="white-space: nowrap;">Catch Date</th>
+                        <th style="width: 1%;">Catch<br>Date</th>
                     </tr>
                 </thead>
                 <tbody>`;
@@ -202,7 +202,9 @@
                     <td style="text-align: left; vertical-align: top;">${displayComment}</td>
                     <td style="text-align: right; vertical-align: top;">${Number(row["Brown Trout Released"]) + Number(row["Brown Trout Retained"])}</td>
                     <td style="text-align: right; vertical-align: top;">${row["Grayling"]}</td>                
-                    <td style="text-align: left; vertical-align: top; white-space: nowrap;">${row.date}</td>
+                    <td style="text-align: left; vertical-align: top;">
+                        <span style="white-space: nowrap;">${row.date}</span>
+                    </td>
                 </tr>`;
             });
 
