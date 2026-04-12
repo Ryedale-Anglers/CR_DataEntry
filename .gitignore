@@ -1,0 +1,28 @@
+# Supabase local system files (The hidden "ghost" folder)
+.supabase/
+
+# Local environment variables (Sensitive keys)
+.env
+.env.local
+
+# Node/JavaScript dependencies
+node_modules/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# SQLite
+*.sqlite3
+*.db
+
+# Typst Outputs
+*.png
+*.pdf
+*.svg
