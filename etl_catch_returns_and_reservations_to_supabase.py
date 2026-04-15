@@ -10,8 +10,15 @@ load_dotenv()
 # 1. Supabase Localhost Connection ---
 # Default local Supabase connection details:
 # User: postgres, Password: postgres, Host: localhost, Port: 54322, DB: postgres
-DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
-engine = create_engine(DB_URL)
+#DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
+# --- CONFIGURATION FROM ENV ---
+SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH')
+SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
+
+if not SUPABASE_CONN_STRING or not SQLITE_DB_PATH:
+    raise ValueError("Missing environment variables. Check your .env file.")
+
+engine = create_engine(SUPABASE_CONN_STRING)
 
 
 def refresh_catch_returns_data(conn):
@@ -30,9 +37,9 @@ def refresh_catch_returns_data(conn):
         df_new.rename(columns=mapping, inplace=True)
         df_final = df_new[list(mapping.values())].copy()
         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
+        print(f"Fetched {len(df_final)} records from Google Sheets.")
 
-        # FIX: Removed 'with engine.begin()' - use the passed 'conn' directly
-        print("Wiping old catch_returns_staging data...")
+        print(f"Wiping old catch_returns_staging data...")
         conn.execute(text("TRUNCATE TABLE catch_returns_staging_table RESTART IDENTITY;"))
         
         print(f"Uploading {len(df_final)} fresh records...")
@@ -48,7 +55,7 @@ def refresh_reservations_table_data(csv_filename, table_name, conn):
         df_reservations = pd.read_csv(csv_filename, skiprows=1, encoding='utf-8-sig')
         #df_reservations.rename(columns={'Start date': 'Date'}, inplace=True)
         df_reservations.columns = df_reservations.columns.str.strip()
-        
+        print(f"Fetched {len(df_reservations)} records reservations CSV.")
         print(f"Wiping old {table_name} data...")
         # FIX: Use format to safely inject table name into TRUNCATE
         conn.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY;"))
@@ -114,6 +121,10 @@ def match_and_update_reservation_names(conn):
                 updates.append({"cr_name": master_lookup[prefixed_key], "id": row_id})
             elif surname_key in master_lookup:
                 updates.append({"cr_name": master_lookup[surname_key], "id": row_id})
+            else:
+                # This will trigger the try/except block below
+                #raise ValueError(f"No match found in members table for name: {full_name} (ID: {row_id})")
+                print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
 
         if updates:
             conn.execute(
@@ -131,6 +142,7 @@ try:
     # This is where 'conn' is created for the whole session
     with engine.begin() as conn: 
         print("🚀 Starting Master Sync...")
+        print(f"to... {SUPABASE_CONN_STRING}")
         
         # 1. Load Reservations
         refresh_reservations_table_data(

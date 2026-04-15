@@ -1,5 +1,9 @@
 # Supabase local system files (The hidden "ghost" folder)
 .supabase/
+# Supabase local development
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.import_map.json
 
 # Local environment variables (Sensitive keys)
 .env
@@ -21,8 +25,10 @@ env/
 # SQLite
 *.sqlite3
 *.db
+*.csv
 
 # Typst Outputs
 *.png
 *.pdf
 *.svg
+*.typ

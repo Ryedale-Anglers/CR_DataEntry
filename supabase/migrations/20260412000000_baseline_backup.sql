@@ -238,45 +238,34 @@ create or replace view "public"."view_catch_returns_missing" as  SELECT date,
   ORDER BY (floor(EXTRACT(day FROM (CURRENT_TIMESTAMP - ((date)::timestamp without time zone)::timestamp with time zone)))) DESC;
 
 
-create or replace view "public"."view_missing_cr_age_report" as  WITH missingreturns AS (
-         SELECT vrcs.cr_name,
-            (CURRENT_DATE - vrcs.date) AS days_old
-           FROM (public.view_reservations_confirmed_staging vrcs
-             LEFT JOIN public.catch_returns_staging_table crst ON (((vrcs.cr_name = crst.rod_name) AND (vrcs.date = crst.catch_date))))
-          WHERE ((vrcs.date < CURRENT_DATE) AND (crst.rod_name IS NULL))
-        )
- SELECT m.member_name,
-    count(
-        CASE
-            WHEN (mr.days_old <= 7) THEN 1
-            ELSE NULL::integer
-        END) AS "1-7 Days",
-    count(
-        CASE
-            WHEN ((mr.days_old > 7) AND (mr.days_old <= 14)) THEN 1
-            ELSE NULL::integer
-        END) AS "8-14 Days",
-    count(
-        CASE
-            WHEN ((mr.days_old > 14) AND (mr.days_old <= 21)) THEN 1
-            ELSE NULL::integer
-        END) AS "15-21 Days",
-    count(
-        CASE
-            WHEN ((mr.days_old > 21) AND (mr.days_old <= 28)) THEN 1
-            ELSE NULL::integer
-        END) AS "21-28 Days",
-    count(
-        CASE
-            WHEN (mr.days_old > 28) THEN 1
-            ELSE NULL::integer
-        END) AS "28+ Days",
-    count(mr.cr_name) AS "Total Missing"
-   FROM (public.members m
-     JOIN missingreturns mr ON ((m.cr_name = mr.cr_name)))
-  GROUP BY m.member_name
-  ORDER BY (count(mr.cr_name)) DESC;
-
+create or replace view "public"."view_missing_cr_age_report" as  
+WITH return_stats AS (
+    SELECT 
+        vrcs.cr_name,
+        CURRENT_DATE - vrcs.date AS days_old,
+        -- 1 if submitted, 0 if missing
+        CASE WHEN crst.rod_name IS NOT NULL THEN 1 ELSE 0 END as was_submitted
+    FROM view_reservations_confirmed_staging vrcs
+    LEFT JOIN catch_returns_staging_table crst 
+        ON vrcs.cr_name = crst.rod_name 
+        AND vrcs.date = crst.catch_date
+    WHERE vrcs.date < CURRENT_DATE
+)
+SELECT 
+    m.member_name,
+    SUM(rs.was_submitted) AS "Returns Submitted",
+    --COUNT(CASE WHEN rs.was_submitted = 0 AND rs.days_old <= 7 THEN 1 END) AS "1-7 Days",
+    COUNT(CASE WHEN rs.was_submitted = 0 AND rs.days_old > 7 AND rs.days_old <= 14 THEN 1 END) AS "8-14 Days",
+    COUNT(CASE WHEN rs.was_submitted = 0 AND rs.days_old > 14 AND rs.days_old <= 21 THEN 1 END) AS "15-21 Days",
+    COUNT(CASE WHEN rs.was_submitted = 0 AND rs.days_old > 21 AND rs.days_old <= 28 THEN 1 END) AS "21-28 Days",
+    COUNT(CASE WHEN rs.was_submitted = 0 AND rs.days_old > 28 THEN 1 END) AS "28+ Days",
+    COUNT(CASE WHEN rs.was_submitted = 0 THEN 1 END) AS "Total Missing"
+FROM members m
+JOIN return_stats rs ON m.cr_name = rs.cr_name
+GROUP BY m.member_name
+-- Filter: Only show members where the count of missing returns is greater than 0
+HAVING COUNT(CASE WHEN rs.was_submitted = 0 THEN 1 END) > 0
+ORDER BY "Total Missing" DESC;
 
 grant delete on table "public"."beats" to "anon";
 
