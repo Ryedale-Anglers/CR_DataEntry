@@ -1,11 +1,11 @@
 from ast import Try
 
 import pandas as pd
-#import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt 
 import numpy as np
 import os, glob
 import typst
-
+import sys
 
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv

@@ -218,9 +218,51 @@ def migrate_historic_catchreturns(conn):
     except Exception as e:
         print(f"❌ Migration failed: {e}")
 
+def migrate_report_versions(conn):
+    try:
+        # 1. Connect to SQLite and extract data
+        print(f"Reading report versions data from {SQLITE_DB_PATH}...")
+        df = pd.read_sql('SELECT * FROM ReportVersionTable', sqlite_engine)
+        
+        # Mapping SQLite column names (PascalCase) to Supabase (snake_case)
+        df.columns = ['id', 'report_version', 'report_year', 'changes_txt', 'creation_date', 'report_type']
+        print(f"Successfully extracted {len(df)} report versions records.")        
+       
+        # 3. Truncate target table and reset identity
+        print("Truncating Supabase table...")
+        conn.execute(text("TRUNCATE TABLE public.report_versions RESTART IDENTITY CASCADE;"))
+        
+        # 4. Load data (maintaining the 'id' values)
+        print("Loading data into Supabase...")
+        df.to_sql(
+            'report_versions', 
+            conn, 
+            schema='public', 
+            if_exists='append', 
+            index=False, 
+            method='multi'
+        )
+        
+        # 5. Sync the identity sequence
+        # Since we manually inserted IDs, we must update the sequence 
+        # so the next auto-insert starts at the correct number.
+        print("Syncing identity sequence...")
+        conn.execute(text("""
+            SELECT setval(
+                pg_get_serial_sequence('public.report_versions', 'id'), 
+                COALESCE(MAX(id), 1)
+            ) FROM public.report_versions;
+        """))
+
+        print("✅ Migration complete.")
+
+    except Exception as e:
+        print(f"❌ Migration failed: {e}")
+
 if __name__ == "__main__":
     with supabase_engine.begin() as conn: 
         migrate_beats(conn)
         migrate_reservation_beats(conn)
         migrate_members(conn)
         migrate_historic_catchreturns(conn)
+        migrate_report_versions(conn)

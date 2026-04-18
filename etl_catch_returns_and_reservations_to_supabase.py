@@ -12,11 +12,12 @@ load_dotenv()
 # User: postgres, Password: postgres, Host: localhost, Port: 54322, DB: postgres
 #DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
 # --- CONFIGURATION FROM ENV ---
-SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH')
+#SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH')
 SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
 
-if not SUPABASE_CONN_STRING or not SQLITE_DB_PATH:
-    raise ValueError("Missing environment variables. Check your .env file.")
+#if not SUPABASE_CONN_STRING or not SQLITE_DB_PATH:
+if not SUPABASE_CONN_STRING:
+    raise ValueError("Missing environment variable. Check your .env file.")
 
 engine = create_engine(SUPABASE_CONN_STRING)
 
