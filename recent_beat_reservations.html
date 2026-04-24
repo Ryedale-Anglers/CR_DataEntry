@@ -18,11 +18,12 @@
     }
 
     .fishing-grid {
-            display: grid;
-            grid-template-columns: 110px repeat(10, 35px); 
-            border-collapse: collapse;
-            gap: 0; /* Ensure no space between cells */
-        }
+        display: grid;
+        grid-template-columns: 120px repeat(10, 50px); /* Match your JS dynamic columns */
+        border-collapse: collapse;
+        gap: 0;
+        position: relative; /* Add this to help sticky child elements */
+    }
 
     .cell {
         padding: 0; /* Remove all padding */
@@ -161,23 +162,27 @@ async function initGrid() {
     });
 
     // Replace your scroll lines with this:
+
+    // Replace the scroll logic in BOTH places (initGrid and resize listener)
     const container = document.getElementById('scroll-container');
     if (container) {
-        // We scroll to the max, but the CSS 'sticky' property 
-        // will keep the Beat column pinned to the left edge of the viewport.
-        container.scrollLeft = container.scrollWidth;
+        // scrollWidth is the total grid size
+        // clientWidth is the width of the visible phone screen
+        // This moves the "view" to the end without pushing the sticky column off-screen
+        container.scrollLeft = container.scrollWidth - container.clientWidth;
     }
 
 
 }
 // 1. Define the resize listener first
     window.addEventListener('resize', () => {
-        const container = document.getElementById('scroll-container');
-        if (container) {
-            // We scroll to the max, but the CSS 'sticky' property 
-            // will keep the Beat column pinned to the left edge of the viewport.
-            container.scrollLeft = container.scrollWidth;
-        }
+    const container = document.getElementById('scroll-container');
+    if (container) {
+        // scrollWidth is the total grid size
+        // clientWidth is the width of the visible phone screen
+        // This moves the "view" to the end without pushing the sticky column off-screen
+        container.scrollLeft = container.scrollWidth - container.clientWidth;
+    }
     });
 
     // 2. Call the function last
