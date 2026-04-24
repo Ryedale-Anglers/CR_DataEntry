@@ -1,0 +1,37 @@
+# Supabase local system files (The hidden "ghost" folder)
+.supabase/
+# Supabase local development
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.import_map.json
+
+# Local environment variables (Sensitive keys)
+.env
+.env.local
+
+# Node/JavaScript dependencies
+node_modules/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# SQLite
+*.sqlite3
+*.db
+*.csv
+
+# Typst Outputs
+*.png
+*.pdf
+*.svg
+*.typ
+
+#Logs like those from CRONTAB
+*.log
