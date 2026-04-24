@@ -32,3 +32,6 @@ env/
 *.pdf
 *.svg
 *.typ
+
+#Logs like those from CRONTAB
+*.log

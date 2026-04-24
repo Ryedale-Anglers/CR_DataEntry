@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fishing Pressure Grid</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    /* Global reduction of font and spacing */
+    body { font-family: sans-serif; background: #f4f7f6; padding: 5px; font-size: 11px; }
+    h2 { font-size: 1rem; margin: 0 0 5px 0; }
+    
+    .grid-wrapper {
+        max-width: 100%;
+        overflow-x: auto; 
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .fishing-grid {
+        display: grid;
+        /* Narrower beat name column and tighter date columns */
+        grid-template-columns: 110px repeat(10, 35px); 
+        border-collapse: collapse;
+    }
+
+    .cell {
+        padding: 0; /* Remove all padding */
+        border: 1px solid #eee;
+        text-align: center;
+        font-size: 0.7rem; 
+        height: 18px; /* Force a very short row height */
+        line-height: 18px; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-cell {
+            background: #2980b9;
+            color: white;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            height: 22px;
+        }
+
+    /* Combined fix for both issues */
+    .beat-name {
+        position: sticky;
+        left: 0;
+        background: #ecf0f1;
+        /* Fix 1: Make header text dark so it's readable */
+        color: #2c3e50; 
+        font-weight: bold;
+        z-index: 3;
+        border-right: 2px solid #bdc3c7;
+        justify-content: flex-start;
+        padding-left: 4px;
+        white-space: nowrap;
+        /* Fix 2: Prevent bleeding/overlap */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block; /* Required for text-overflow to work correctly */
+    }
+
+    /* Symbols instead of text to save space */
+    .fished { background: #e74c3c; color: white; font-weight: bold; }
+    .fished::after { content: "×"; } 
+    .rested { background: #2ecc71; color: white; opacity: 0.8; }
+    .rested::after { content: "•"; } /* Smaller dot for rested beats */
+</style>
+</head>
+<body>
+
+    <h2>Beat Pressure (Last 10 Days)</h2>
+    <p>Scroll left to see older history. Today is on the far right.</p>
+
+    <div class="grid-wrapper" id="scroll-container">
+        <div id="grid" class="fishing-grid">
+            <div style="padding: 20px;">Loading...</div>
+        </div>
+    </div>
+
+<script>
+    //const SUPABASE_URL = 'https://db.iwxpxphtqwjowzgzrflh.supabase.co';
+    const SUPABASE_URL = 'http://127.0.0.1:54321';
+    //const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3BsY';
+    const SUPABASE_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // d) 10 days history is sufficient
+    const DAYS_TO_SHOW = 10;
+    const gridElement = document.getElementById('grid');
+
+async function initGrid() {
+    // 1. Generate 10-day date range (Oldest -> Today)
+    const dates = [];
+    for (let i = 9; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]); 
+    }
+
+    // 2. Fetch Master List of Beats
+    const { data: beats, error: beatsError } = await supabaseClient
+        .from('beats')
+        .select('id, beat, river_order')
+        .neq('id', '18')
+        .order('river_order', { ascending: true });
+
+    // 3. Fetch Recent Reservations
+    const { data: reservations, error: resError } = await supabaseClient
+        .from('view_reservations_confirmed_staging')
+        .select('beat, date')
+        .gte('date', dates[0]);
+
+    if (beatsError || resError) {
+        gridElement.innerHTML = "Error loading data.";
+        console.error({ beatsError, resError });
+        return;
+    }
+
+    // 4. Build the Grid
+    gridElement.innerHTML = ''; 
+    gridElement.style.gridTemplateColumns = `120px repeat(${dates.length}, 50px)`;
+
+    // Render Headers (Dates)
+    gridElement.innerHTML += `<div class="cell header-cell beat-name">Beat</div>`;
+    dates.forEach(date => {
+        const displayDate = new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        gridElement.innerHTML += `<div class="cell header-cell">${displayDate}</div>`;
+    });
+
+    // 5. Render Rows (Looping through the MASTER list)
+    beats.forEach(b => {
+        // Use the beat name from the 'beats' table
+        gridElement.innerHTML += `<div class="cell beat-name">${b.beat}</div>`;
+        
+        dates.forEach(date => {
+            // Check if ANY reservation matches this specific beat name and date
+            const isFished = reservations.some(r => r.beat === b.beat && r.date === date);
+            const statusClass = isFished ? 'fished' : 'rested';
+            gridElement.innerHTML += `<div class="cell ${statusClass}"></div>`;
+        });
+    });
+
+    // Auto-scroll to Today
+    const container = document.getElementById('scroll-container');
+    if (container) {
+        container.scrollLeft = container.scrollWidth;
+    }
+}
+// 1. Define the resize listener first
+    window.addEventListener('resize', () => {
+        const container = document.getElementById('scroll-container');
+        if (container) {
+            container.scrollLeft = container.scrollWidth;
+        }
+    });
+
+    // 2. Call the function last
+    initGrid();
+</script>
+</body>
+</html>

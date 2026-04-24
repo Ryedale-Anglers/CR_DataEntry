@@ -1,11 +1,42 @@
 import os
+import requests
+import shutil
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy import text
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables (for your DB password/connection string)
 load_dotenv()
+
+#================================================================
+# ibookfishing report download configuration
+URL = os.getenv('IBOOKFISHING_REPORT_PAGE_URL')
+IBOOKFISHING_REPORT_SHSEC = os.getenv('IBOOKFISHING_REPORT_SHSEC')
+IBOOKFISHING_REPORT_CALENDAR_ID = os.getenv('IBOOKFISHING_REPORT_CALENDAR_ID')
+IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
+
+# The exact string you type into the browser
+# It defines 'from the start of the season until today' for the report'
+# and makes it year agnostic so you don't have to update it every year.
+thisYear = datetime.now().year
+DATE_STR = f"{thisYear}-04-01 to Today"
+
+# Payload built from your screenshots
+PAYLOAD = {
+    'type': '1',
+    'alt_type': '1',
+    'download': 'csv',
+    'alt_days': DATE_STR,
+    'required_status': '4',
+    'sort_field': 'name',
+    'id': '759',
+    'calendar': IBOOKFISHING_REPORT_CALENDAR_ID,
+    'shsec': IBOOKFISHING_REPORT_SHSEC,
+    's2': IBOOKFISHING_REPORT_S2
+}
+
 
 # 1. Supabase Localhost Connection ---
 # Default local Supabase connection details:
@@ -21,6 +52,50 @@ if not SUPABASE_CONN_STRING:
 
 engine = create_engine(SUPABASE_CONN_STRING)
 
+def run_reservations_download():
+    # 1. Create a unique filename (e.g., report_2026-04-22.csv)
+    datestamp = datetime.now().strftime("%Y%m%d")
+    filename = f"./reservations_data/reservations_confirmed_{datestamp}.csv"
+    
+    print(f"Bypassing the UI to download report for: {DATE_STR}...")
+
+    try:
+        # 2. Execute the POST request
+        response = requests.post(URL, data=PAYLOAD, timeout=30)
+        response.raise_for_status()
+
+        # 3. Save the file locally
+        with open(filename, 'wb') as f:
+            f.write(response.content)
+        
+        print(f"Successfully downloaded: {filename}")
+
+        # 4. Trigger your existing DB script
+        # Assuming your upload script has a function called 'upload'
+        # import your_db_script
+        # your_db_script.upload(filename)
+        print("Ready for DB upload.")
+        return filename
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+def process_reservations_file(downloaded_file):
+    # The 'static' path your DB script looks for
+    target_path = "./reservations_data/reservations_confirmed.csv"
+    
+    # Ensure the directory exists so the script doesn't crash
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    
+    try:
+        # Copy the dated file to the static filename (overwrites if exists)
+        shutil.copy2(downloaded_file, target_path)
+        print(f"File staged: {downloaded_file} -> {target_path}")
+        
+    except Exception as e:
+        print(f"Error during file processing: {e}")
 
 def refresh_catch_returns_data(conn):
     try:
@@ -139,28 +214,44 @@ def match_and_update_reservation_names(conn):
         raise e
 
 # --- EXECUTION AREA ---
-try:
-    # This is where 'conn' is created for the whole session
-    with engine.begin() as conn: 
-        print("🚀 Starting Master Sync...")
-        print(f"to... {SUPABASE_CONN_STRING}")
-        
-        # 1. Load Reservations
-        refresh_reservations_table_data(
-            './reservations_data/reservations_confirmed.csv', 
-            'reservations_confirmed_staging',
-            conn  # Pass it in
-        )
-        
-        # 2. Match Names
-        match_and_update_reservation_names(conn) # Pass it in
-        
-        # 3. Load Catch Returns
-        refresh_catch_returns_data(conn) # Pass it in
-        
-        print("✅ All steps completed. Transaction committed.")
+if __name__ == "__main__":
+    try:
+        # Identify timestamp this program is being run 
+        # for the log file
+        datestamp = datetime.now().strftime("%Y-%m-%d: %H:%M")
+        print(" ")
+        print("===============================================")
+        print(f"Starting ETL process for Catch Returns and Reservations at {datestamp}")
 
-except Exception as e:
-    # If ANY of the functions above crash, engine.begin() 
-    # automatically rolls back everything.
-    print(f"❌ Transaction Failed! No data was changed in Supabase. Error: {e}")
+        downloaded_path = run_reservations_download()
+        
+        # 2. Check if the download actually worked before trying to process it
+        if downloaded_path:
+            # This function just copies the file to the static path your DB script expects, so it can be picked up in the next step
+            process_reservations_file(downloaded_path)
+        else:
+            print("Download failed, skipping file processing.")
+
+        # This is where 'conn' is created for the whole session
+        with engine.begin() as conn: 
+            print(f"🚀 Starting Master Sync : to... {SUPABASE_CONN_STRING}")
+            
+            # 1. Load Reservations
+            refresh_reservations_table_data(
+                './reservations_data/reservations_confirmed.csv', 
+                'reservations_confirmed_staging',
+                conn  # Pass it in
+            )
+            
+            # 2. Match Names
+            match_and_update_reservation_names(conn) # Pass it in
+            
+            # 3. Load Catch Returns
+            refresh_catch_returns_data(conn) # Pass it in
+            
+            print("✅ All steps completed. Transaction committed.")
+
+    except Exception as e:
+        # If ANY of the functions above crash, engine.begin() 
+        # automatically rolls back everything.
+        print(f"❌ Transaction Failed! No data was changed in Supabase. Error: {e}")
