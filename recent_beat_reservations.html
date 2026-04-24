@@ -21,9 +21,9 @@
             overflow: hidden;
         }
 
-        /* Fixed Left Column (Beats) */
+        /* Fixed Left Column (Beats) - Reduced to 108px per your request */
         .names-column {
-            width: 120px;
+            width: 108px;
             flex-shrink: 0;
             background: #ecf0f1;
             border-right: 2px solid #bdc3c7;
@@ -34,16 +34,15 @@
         .scroll-wrapper {
             flex-grow: 1;
             overflow-x: auto;
-            -webkit-overflow-scrolling: touch; /* Smooth scroll for iOS */
+            -webkit-overflow-scrolling: touch; 
         }
 
         .dates-grid {
             display: grid;
-            /* Grid columns will be set dynamically in JS */
             gap: 0;
         }
 
-        /* Common Cell Styles */
+        /* Common Cell Styles - Compacted Padding */
         .cell {
             height: 20px;
             line-height: 20px;
@@ -54,21 +53,23 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 0 2px; /* Reduced side padding */
         }
 
-        /* Headers */
+        /* Headers - Reduced font size for compactness */
         .header-cell {
             background: #2980b9;
             color: white;
             font-weight: bold;
             height: 22px;
             line-height: 22px;
+            font-size: 0.65rem; /* Slightly smaller header text */
         }
 
         /* Beat Name Specifics */
         .beat-name-cell {
             justify-content: flex-start;
-            padding-left: 6px;
+            padding-left: 4px; /* Tightened padding */
             font-weight: bold;
             color: #2c3e50;
             white-space: nowrap;
@@ -78,11 +79,11 @@
             border-bottom: 0.5px solid #ddd;
         }
 
-        /* Corner Header (Beat Label) */
         .corner-header {
             background: #ecf0f1;
             color: #2c3e50;
             border-bottom: 2px solid #bdc3c7;
+            font-size: 0.7rem;
         }
 
         /* Status Indicators */
@@ -108,9 +109,8 @@
     </div>
 
 <script>
-    // Configuration
     const SUPABASE_URL = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs'; // Ensure this matches your dashboard
+    const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs'; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     async function initGrid() {
@@ -118,7 +118,6 @@
         const datesElement = document.getElementById('dates-grid');
         const scrollContainer = document.getElementById('scroll-container');
 
-        // 1. Generate Dates (Oldest -> Yesterday)
         const dates = [];
         for (let i = 10; i >= 1; i--) {
             const d = new Date();
@@ -126,7 +125,6 @@
             dates.push(d.toISOString().split('T')[0]); 
         }
 
-        // 2. Fetch Data
         const { data: beats, error: beatsError } = await supabaseClient
             .from('beats')
             .select('id, beat, river_order')
@@ -140,27 +138,21 @@
 
         if (beatsError || resError) {
             namesElement.innerHTML = "Error.";
-            console.error({ beatsError, resError });
             return;
         }
 
-        // 3. Clear and Setup Grid Layout
         namesElement.innerHTML = `<div class="cell header-cell corner-header">Beat</div>`;
         datesElement.innerHTML = '';
-        datesElement.style.gridTemplateColumns = `repeat(${dates.length}, 45px)`;
+        // Reduced column width to 40px for a more compact look
+        datesElement.style.gridTemplateColumns = `repeat(${dates.length}, 40px)`;
 
-        // 4. Render Headers
         dates.forEach(date => {
             const displayDate = new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
             datesElement.innerHTML += `<div class="cell header-cell">${displayDate}</div>`;
         });
 
-        // 5. Render Rows
         beats.forEach(b => {
-            // Add to fixed column
             namesElement.innerHTML += `<div class="cell beat-name-cell">${b.beat}</div>`;
-            
-            // Add status to scrolling grid
             dates.forEach(date => {
                 const isFished = reservations.some(r => r.beat === b.beat && r.date === date);
                 const statusClass = isFished ? 'fished' : 'rested';
@@ -168,7 +160,6 @@
             });
         });
 
-        // 6. Auto-scroll to the right (Yesterday)
         if (scrollContainer) {
             setTimeout(() => {
                 scrollContainer.scrollLeft = scrollContainer.scrollWidth;
@@ -176,7 +167,6 @@
         }
     }
 
-    // Handle resize to maintain scroll position
     window.addEventListener('resize', () => {
         const scrollContainer = document.getElementById('scroll-container');
         if (scrollContainer) {
