@@ -18,11 +18,11 @@
     }
 
     .fishing-grid {
-        display: grid;
-        /* Narrower beat name column and tighter date columns */
-        grid-template-columns: 110px repeat(10, 35px); 
-        border-collapse: collapse;
-    }
+            display: grid;
+            grid-template-columns: 110px repeat(10, 35px); 
+            border-collapse: collapse;
+            gap: 0; /* Ensure no space between cells */
+        }
 
     .cell {
         padding: 0; /* Remove all padding */
@@ -43,27 +43,37 @@
             position: sticky;
             top: 0;
             z-index: 2;
-            height: 22px;
+            /* Match the standard cell height */
+            height: 18px; 
         }
+    /* Ensure the header "Beat" cell also stays on top of both vertical and horizontal scroll */
+    /* This targets the specific 'Beat' header cell in the corner */
+    .header-cell.beat-name {
+        background: #ecf0f1; /* Use the same color as the column below it */
+        color: #2c3e50;      /* Keep the text dark */
+        z-index: 20;         /* Highest priority to stay above both scroll axes */
+        border-bottom: 1px solid #eee; /* Add a bottom border to match the grid line */
+    }
 
     /* Combined fix for both issues */
     .beat-name {
-        position: sticky;
-        left: 0;
-        background: #ecf0f1;
-        /* Fix 1: Make header text dark so it's readable */
-        color: #2c3e50; 
-        font-weight: bold;
-        z-index: 3;
-        border-right: 2px solid #bdc3c7;
-        justify-content: flex-start;
-        padding-left: 4px;
-        white-space: nowrap;
-        /* Fix 2: Prevent bleeding/overlap */
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: block; /* Required for text-overflow to work correctly */
-    }
+            position: sticky;
+            left: 0;
+            background: #ecf0f1;
+            color: #2c3e50; 
+            font-weight: bold;
+            z-index: 10;
+            border-right: 2px solid #bdc3c7;
+            justify-content: flex-start;
+            padding-left: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            /* Ensure height and line-height are identical across all cells */
+            height: 18px;
+            line-height: 18px;
+        }
 
     /* Symbols instead of text to save space */
     .fished { background: #e74c3c; color: white; font-weight: bold; }
@@ -75,7 +85,7 @@
 <body>
 
     <h2>Recent Beat Reservations</h2>
-    <p>Scroll left to see older history. Today is on the far right.</p>
+    <p>Key: Red = Beat was reserved/booked. Green = Beat rested that day</p>
 
     <div class="grid-wrapper" id="scroll-container">
         <div id="grid" class="fishing-grid">
@@ -150,16 +160,22 @@ async function initGrid() {
         });
     });
 
-    // Auto-scroll to Today
+    // Replace your scroll lines with this:
     const container = document.getElementById('scroll-container');
     if (container) {
+        // We scroll to the max, but the CSS 'sticky' property 
+        // will keep the Beat column pinned to the left edge of the viewport.
         container.scrollLeft = container.scrollWidth;
     }
+
+
 }
 // 1. Define the resize listener first
     window.addEventListener('resize', () => {
         const container = document.getElementById('scroll-container');
         if (container) {
+            // We scroll to the max, but the CSS 'sticky' property 
+            // will keep the Beat column pinned to the left edge of the viewport.
             container.scrollLeft = container.scrollWidth;
         }
     });
