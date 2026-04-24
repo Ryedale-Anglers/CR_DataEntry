@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fishing Pressure Grid</title>
+    <title>RAC Recent Reservations</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
     /* Global reduction of font and spacing */
@@ -74,7 +74,7 @@
 </head>
 <body>
 
-    <h2>Beat Pressure (Last 10 Days)</h2>
+    <h2>Recent Beat Reservations</h2>
     <p>Scroll left to see older history. Today is on the far right.</p>
 
     <div class="grid-wrapper" id="scroll-container">
@@ -84,10 +84,13 @@
     </div>
 
 <script>
-    //const SUPABASE_URL = 'https://db.iwxpxphtqwjowzgzrflh.supabase.co';
-    const SUPABASE_URL = 'http://127.0.0.1:54321';
-    //const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3BsY';
-    const SUPABASE_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+    const SUPABASE_URL = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs'
+
+    // Local Testing;
+    //const SUPABASE_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+    //const SUPABASE_URL = 'http://127.0.0.1:54321';
+
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // d) 10 days history is sufficient
@@ -97,7 +100,8 @@
 async function initGrid() {
     // 1. Generate 10-day date range (Oldest -> Today)
     const dates = [];
-    for (let i = 9; i >= 0; i--) {
+    // Start at 10 days ago and end at 1 day ago (Yesterday)
+    for (let i = 10; i >= 1; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         dates.push(d.toISOString().split('T')[0]); 
