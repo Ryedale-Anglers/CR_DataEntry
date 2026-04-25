@@ -17,6 +17,7 @@ URL = os.getenv('IBOOKFISHING_REPORT_PAGE_URL')
 IBOOKFISHING_REPORT_SHSEC = os.getenv('IBOOKFISHING_REPORT_SHSEC')
 IBOOKFISHING_REPORT_CALENDAR_ID = os.getenv('IBOOKFISHING_REPORT_CALENDAR_ID')
 IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
+GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 
 # The exact string you type into the browser
 # It defines 'from the start of the season until today' for the report'
@@ -84,7 +85,7 @@ def process_reservations_file(downloaded_file):
 
 def refresh_catch_returns_data(conn):
     try:
-        sheet_id = "1QhLqiUqe9Qy5eHvDGj8k2HDtsrORytQ-KSmNAp5Sqzs"
+        sheet_id = GOOGLE_SHEETS_ID
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         df_new = pd.read_csv(url)
 
