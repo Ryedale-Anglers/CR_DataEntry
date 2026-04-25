@@ -1,6 +1,7 @@
 import os
 import requests
 import shutil
+import io
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy import text
@@ -53,34 +54,18 @@ if not SUPABASE_CONN_STRING:
 engine = create_engine(SUPABASE_CONN_STRING)
 
 def run_reservations_download():
-    # 1. Create a unique filename (e.g., report_2026-04-22.csv)
-    datestamp = datetime.now().strftime("%Y%m%d")
-    filename = f"./reservations_data/reservations_confirmed_{datestamp}.csv"
-    
     print(f"Bypassing the UI to download report for: {DATE_STR}...")
-
     try:
-        # 2. Execute the POST request
         response = requests.post(URL, data=PAYLOAD, timeout=30)
         response.raise_for_status()
-
-        # 3. Save the file locally
-        with open(filename, 'wb') as f:
-            f.write(response.content)
         
-        print(f"Successfully downloaded: {filename}")
-
-        # 4. Trigger your existing DB script
-        # Assuming your upload script has a function called 'upload'
-        # import your_db_script
-        # your_db_script.upload(filename)
-        print("Ready for DB upload.")
-        return filename
+        # Return the bytes directly
+        print("Successfully downloaded data to memory.")
+        return response.content 
 
     except requests.exceptions.RequestException as e:
         print(f"Network error: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        return None
 
 def process_reservations_file(downloaded_file):
     # The 'static' path your DB script looks for
@@ -112,7 +97,15 @@ def refresh_catch_returns_data(conn):
         }
         df_new.rename(columns=mapping, inplace=True)
         df_final = df_new[list(mapping.values())].copy()
+        
+        # --- FIXES START HERE ---
+        # 1. Convert Yes/No to Boolean
+        df_final['guest'] = df_final['guest'].map({'Yes': True, 'No': False})
+        
+        # 2. Ensure date conversion
         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
+        # --- FIXES END HERE ---
+
         print(f"Fetched {len(df_final)} records from Google Sheets.")
 
         print(f"Wiping old catch_returns_staging data...")
@@ -122,21 +115,56 @@ def refresh_catch_returns_data(conn):
         df_final.to_sql('catch_returns_staging_table', conn, if_exists='append', index=False)
         print("✅ Catch Returns Sync complete!")
     except Exception as e:
-        # We re-raise the error so the Master Transaction knows to Rollback
         print(f"❌ Catch Returns Error: {e}")
-        raise e 
+        raise e
 
-def refresh_reservations_table_data(csv_filename, table_name, conn):
+# def refresh_catch_returns_data(conn):
+#     try:
+#         sheet_id = "1QhLqiUqe9Qy5eHvDGj8k2HDtsrORytQ-KSmNAp5Sqzs"
+#         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+#         df_new = pd.read_csv(url)
+
+#         mapping = {
+#             "Timestamp": "timestamp", "Rod Name": "rod_name", "Date": "catch_date",
+#             "Beat": "beat", "Brown Trout Released": "brown_trout_released",
+#             "Grayling": "grayling", "Rainbow Trout": "rainbow_trout",
+#             "Other Species": "other_species", "Brown Trout Retained": "brown_trout_retained",
+#             "Guest": "guest", "Comments": "comments", "DNF": "dnf"
+#         }
+#         df_new.rename(columns=mapping, inplace=True)
+#         df_final = df_new[list(mapping.values())].copy()
+#         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
+#         print(f"Fetched {len(df_final)} records from Google Sheets.")
+
+#         print(f"Wiping old catch_returns_staging data...")
+#         conn.execute(text("TRUNCATE TABLE catch_returns_staging_table RESTART IDENTITY;"))
+        
+#         print(f"Uploading {len(df_final)} fresh records...")
+#         df_final.to_sql('catch_returns_staging_table', conn, if_exists='append', index=False)
+#         print("✅ Catch Returns Sync complete!")
+#     except Exception as e:
+#         # We re-raise the error so the Master Transaction knows to Rollback
+#         print(f"❌ Catch Returns Error: {e}")
+#         raise e 
+
+def refresh_reservations_table_data(csv_bytes, table_name, conn):
     try:
-        df_reservations = pd.read_csv(csv_filename, skiprows=1, encoding='utf-8-sig')
-        #df_reservations.rename(columns={'Start date': 'Date'}, inplace=True)
+        # Wrap bytes in a stream so Pandas can read it like a file
+        csv_buffer = io.BytesIO(csv_bytes)
+        
+        # Use the buffer instead of a file path
+        df_reservations = pd.read_csv(csv_buffer, skiprows=1, encoding='utf-8-sig')
+        
+        df_reservations.columns = df_reservations.columns.str.strip()
+        print(f"Fetched {len(df_reservations)} records from memory buffer.")
+
         df_reservations.columns = df_reservations.columns.str.strip()
         print(f"Fetched {len(df_reservations)} records reservations CSV.")
         print(f"Wiping old {table_name} data...")
         # FIX: Use format to safely inject table name into TRUNCATE
         conn.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY;"))
 
- # 1. THE MAPPING DICTIONARY
+        # 1. THE MAPPING DICTIONARY
         res_mapping = {
             "Start date": "date",
             "Resource": "resource",
@@ -222,36 +250,27 @@ if __name__ == "__main__":
         print(" ")
         print("===============================================")
         print(f"Starting ETL process for Catch Returns and Reservations at {datestamp}")
-
-        downloaded_path = run_reservations_download()
+        # 1. Download directly into a variable (bytes)
+        downloaded_data = run_reservations_download()
         
-        # 2. Check if the download actually worked before trying to process it
-        if downloaded_path:
-            # This function just copies the file to the static path your DB script expects, so it can be picked up in the next step
-            process_reservations_file(downloaded_path)
+        if downloaded_data:
+            with engine.begin() as conn: 
+                print(f"🚀 Starting Master Sync...")
+                
+                # 2. Pass the bytes directly to the processing function
+                refresh_reservations_table_data(
+                    downloaded_data, 
+                    'reservations_confirmed_staging',
+                    conn
+                )
+                
+                # 3. Match Names & Catch Returns
+                match_and_update_reservation_names(conn)
+                refresh_catch_returns_data(conn)
+                
+                print("✅ All steps completed.")
         else:
-            print("Download failed, skipping file processing.")
-
-        # This is where 'conn' is created for the whole session
-        with engine.begin() as conn: 
-            print(f"🚀 Starting Master Sync : to... {SUPABASE_CONN_STRING}")
-            
-            # 1. Load Reservations
-            refresh_reservations_table_data(
-                './reservations_data/reservations_confirmed.csv', 
-                'reservations_confirmed_staging',
-                conn  # Pass it in
-            )
-            
-            # 2. Match Names
-            match_and_update_reservation_names(conn) # Pass it in
-            
-            # 3. Load Catch Returns
-            refresh_catch_returns_data(conn) # Pass it in
-            
-            print("✅ All steps completed. Transaction committed.")
+            print("No data received from download.")
 
     except Exception as e:
-        # If ANY of the functions above crash, engine.begin() 
-        # automatically rolls back everything.
-        print(f"❌ Transaction Failed! No data was changed in Supabase. Error: {e}")
+        print(f"❌ Transaction Failed! Error: {e}")
