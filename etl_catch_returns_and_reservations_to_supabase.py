@@ -40,13 +40,10 @@ PAYLOAD = {
 }
 
 
-# 1. Supabase Localhost Connection ---
-# Default local Supabase connection details:
-# User: postgres, Password: postgres, Host: localhost, Port: 54322, DB: postgres
-#DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
+# 1. Supabase Connection ---
 # --- CONFIGURATION FROM ENV ---
-#SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH')
 SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
+#SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
 
 #if not SUPABASE_CONN_STRING or not SQLITE_DB_PATH:
 if not SUPABASE_CONN_STRING:
