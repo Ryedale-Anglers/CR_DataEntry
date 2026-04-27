@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Add Homebrew to the PATH for this script session
+export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
+
 # Target the exact project directory
 PROJECT_DIR="$HOME/Documents/GitHub/CR_DataEntry"
 

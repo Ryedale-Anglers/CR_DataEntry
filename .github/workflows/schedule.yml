@@ -2,8 +2,9 @@ name: Nightly ETL Job
 
 on:
   schedule:
-    # This runs at 01:00 UTC daily
-    - cron: '0 1 * * *'
+    # This runs at 02:17 London time daily
+    - cron: '17 2 * * *'
+      timezone: 'Europe/London'
   workflow_dispatch: 
 
 jobs:
