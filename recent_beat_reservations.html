@@ -4,24 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAC Recent Reservations</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.43.4/dist/umd/supabase.js"></script>
     <style>
         /* Global Styles */
         body { font-family: sans-serif; background: #f4f7f6; padding: 5px; font-size: 11px; margin: 0; }
         h2 { font-size: 1rem; margin: 5px 0; }
         p { margin: 0 0 10px 0; color: #555; }
 
-        /* Two-Column Layout Container */
+        /* Container constrained to viewport to prevent ghost white space on mobile */
         .main-container {
             display: flex;
-            max-width: 100%;
+            max-width: 100vw;
             border: 1px solid #ccc;
             border-radius: 4px;
             background: white;
-            overflow: hidden;
+            position: relative;
+            overflow: hidden; 
         }
 
-        /* Fixed Left Column (Beats) - Reduced to 108px per your request */
         .names-column {
             width: 108px;
             flex-shrink: 0;
@@ -30,10 +30,10 @@
             z-index: 5;
         }
 
-        /* Scrollable Right Column (Dates) */
         .scroll-wrapper {
             flex-grow: 1;
             overflow-x: auto;
+            overflow-y: visible;
             -webkit-overflow-scrolling: touch; 
         }
 
@@ -42,34 +42,28 @@
             gap: 0;
         }
 
-        /* Common Cell Styles - Compacted Padding */
         .cell {
             height: 20px;
             line-height: 20px;
             border: 0.5px solid #eee;
-            text-align: center;
-            font-size: 0.7rem;
             box-sizing: border-box;
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 0 2px; /* Reduced side padding */
+            padding: 0 2px;
         }
 
-        /* Headers - Reduced font size for compactness */
         .header-cell {
             background: #2980b9;
             color: white;
             font-weight: bold;
-            height: 22px;
-            line-height: 22px;
-            font-size: 0.65rem; /* Slightly smaller header text */
+            justify-content: center;
+            text-align: center;
+            font-size: 0.65rem;
         }
 
-        /* Beat Name Specifics */
         .beat-name-cell {
             justify-content: flex-start;
-            padding-left: 4px; /* Tightened padding */
+            padding-left: 4px;
             font-weight: bold;
             color: #2c3e50;
             white-space: nowrap;
@@ -79,30 +73,97 @@
             border-bottom: 0.5px solid #ddd;
         }
 
-        .corner-header {
-            background: #ecf0f1;
-            color: #2c3e50;
-            border-bottom: 2px solid #bdc3c7;
-            font-size: 0.7rem;
+        /* Reserved Cell Styling */
+        .fished { 
+            background: #e74c3c; 
+            color: white; 
+            font-weight: bold; 
+            font-size: 0.5rem;
+            flex-direction: column;
+            align-items: flex-start; /* Strictly Left Aligned */
+            justify-content: center;
+            padding-left: 4px;
+            line-height: 1.1;
+            position: relative; 
+        }
+        
+        .stat-row {
+            display: block;
+            text-align: left;
+            width: 100%;
         }
 
-        /* Status Indicators */
-        .fished { background: #e74c3c; color: white; font-weight: bold; }
-        .fished::after { content: "×"; } 
-        .rested { background: #2ecc71; color: white; opacity: 0.8; }
-        .rested::after { content: "•"; }
+        .rested { 
+            background: #2ecc71; 
+            color: white; 
+            opacity: 0.8; 
+            justify-content: center; 
+            font-size: 0.7rem; 
+        }
+        
+        /* Business-like Comment Icon */
+        .comment-icon, .legend-icon {
+            width: 7px;
+            height: 7px;
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 1px;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+        }
+        .comment-icon { position: absolute; top: 2px; right: 2px; }
+        .legend-icon { display: inline-block; border-color: #777; vertical-align: middle; margin: 0 2px; }
+
+        .comment-icon::after, .legend-icon::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 1px;
+            width: 4px;
+            height: 1px;
+            background: white;
+        }
+        .legend-icon::after { background: #777; }
+
+        /* Popup Rectangle Styling */
+        .fished .popup-text {
+            visibility: hidden;
+            width: 150px;
+            background-color: #222;
+            color: #fff;
+            border-radius: 4px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 130%; /* Default: Above cell */
+            right: 0;      /* Default: Grow LEFT */
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-weight: normal;
+            font-size: 0.7rem;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.4);
+            pointer-events: none; 
+            white-space: normal;
+        }
+
+        /* Edge Awareness Classes */
+        .fished.popup-right-grow .popup-text { right: auto; left: 0; } /* Grow RIGHT */
+        .fished.popup-bottom .popup-text { bottom: auto; top: 130%; } /* Grow DOWN */
+
+        .fished.has-comments:hover .popup-text, 
+        .fished.has-comments:active .popup-text {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
 
     <h2>Recent Beat Reservations</h2>
-    <p>Key: Red (×) = Reserved. Green (•) = Rested.</p>
+    <p>Key: Red = Reserved. Green (•) = Rested.
+     Hover over (click on mobile) <span class="legend-icon"></span> icons to see member comments.</p>
 
     <div class="main-container">
-        <div id="names-column" class="names-column">
-            <div style="padding: 10px;">Loading...</div>
-        </div>
-        
+        <div id="names-column" class="names-column"></div>
         <div class="scroll-wrapper" id="scroll-container">
             <div id="dates-grid" class="dates-grid"></div>
         </div>
@@ -125,25 +186,35 @@
             dates.push(d.toISOString().split('T')[0]); 
         }
 
-        const { data: beats, error: beatsError } = await supabaseClient
-            .from('beats')
-            .select('id, beat, river_order')
-            .neq('id', '18')
-            .order('river_order', { ascending: true });
+        const [beatsRes, vrcsRes, catchRes] = await Promise.all([
+            supabaseClient.from('beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
+            supabaseClient.from('view_reservations_confirmed_staging').select('beat, date, cr_name').gte('date', dates[0]),
+            supabaseClient.from('catch_returns_staging_table').select('rod_name, catch_date, brown_trout_released, brown_trout_retained, grayling, comments')
+        ]);
 
-        const { data: reservations, error: resError } = await supabaseClient
-            .from('view_reservations_confirmed_staging')
-            .select('beat, date')
-            .gte('date', dates[0]);
-
-        if (beatsError || resError) {
-            namesElement.innerHTML = "Error.";
+        if (beatsRes.error || vrcsRes.error || catchRes.error) {
+            namesElement.innerHTML = "<div style='padding:10px'>Error.</div>";
             return;
         }
 
-        namesElement.innerHTML = `<div class="cell header-cell corner-header">Beat</div>`;
+        const catchLookup = {};
+        catchRes.data.forEach(c => {
+            catchLookup[`${c.catch_date}|${c.rod_name}`] = c;
+        });
+
+        const gridData = {};
+        vrcsRes.data.forEach(res => {
+            const match = catchLookup[`${res.date}|${res.cr_name}`];
+            gridData[`${res.beat}|${res.date}`] = {
+                hasMatch: !!match,
+                bt: match ? ((match.brown_trout_released || 0) + (match.brown_trout_retained || 0)) : null,
+                gy: match ? (match.grayling ?? 0) : null,
+                comments: match ? match.comments : null
+            };
+        });
+
+        namesElement.innerHTML = `<div class="cell header-cell">Beat</div>`;
         datesElement.innerHTML = '';
-        // Reduced column width to 40px for a more compact look
         datesElement.style.gridTemplateColumns = `repeat(${dates.length}, 40px)`;
 
         dates.forEach(date => {
@@ -151,28 +222,40 @@
             datesElement.innerHTML += `<div class="cell header-cell">${displayDate}</div>`;
         });
 
-        beats.forEach(b => {
-            namesElement.innerHTML += `<div class="cell beat-name-cell">${b.beat}</div>`;
-            dates.forEach(date => {
-                const isFished = reservations.some(r => r.beat === b.beat && r.date === date);
-                const statusClass = isFished ? 'fished' : 'rested';
-                datesElement.innerHTML += `<div class="cell ${statusClass}"></div>`;
+        beatsRes.data.forEach((b, index) => {
+            namesElement.innerHTML += `<div class="cell beat-name-cell" title="${b.beat}">${b.beat}</div>`;
+            dates.forEach((date, dateIndex) => {
+                const data = gridData[`${b.beat}|${date}`];
+                if (data) {
+                    let classes = "cell fished";
+                    
+                    // Edge awareness logic
+                    if (index < 3) classes += " popup-bottom"; 
+                    if (dateIndex < 3) classes += " popup-right-grow";
+                    
+                    let content = "";
+                    if (!data.hasMatch) {
+                        content = `<span class="stat-row" style="font-size: 0.42rem; margin-top: 1px;">CR Due</span>`;
+                    } else {
+                        content = `<span class="stat-row">T:${data.bt}</span><span class="stat-row">G:${data.gy}</span>`;
+                    }
+                    
+                    if (data.comments && data.comments.trim() !== "") {
+                        classes += " has-comments";
+                        content += `<span class="comment-icon"></span>`;
+                        content += `<div class="popup-text"><strong>Note:</strong><br>${data.comments}</div>`;
+                    }
+                    datesElement.innerHTML += `<div class="${classes}">${content}</div>`;
+                } else {
+                    datesElement.innerHTML += `<div class="cell rested">•</div>`;
+                }
             });
         });
 
         if (scrollContainer) {
-            setTimeout(() => {
-                scrollContainer.scrollLeft = scrollContainer.scrollWidth;
-            }, 100);
+            setTimeout(() => { scrollContainer.scrollLeft = scrollContainer.scrollWidth; }, 100);
         }
     }
-
-    window.addEventListener('resize', () => {
-        const scrollContainer = document.getElementById('scroll-container');
-        if (scrollContainer) {
-            scrollContainer.scrollLeft = scrollContainer.scrollWidth;
-        }
-    });
 
     initGrid();
 </script>
