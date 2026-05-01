@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "dev": "supabase functions serve send_Res_CR_history_email --no-verify-jwt --import-map ./supabase/functions/send_Res_CR_history_email/deno.json"
+  },
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2",
+    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+  }
+}

@@ -209,9 +209,30 @@
 </div>
 
 <script>
-    const supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
-    const supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    let supabaseUrl, supabaseKey, edgeFunctionUrl;
+
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        supabaseUrl = 'http://127.0.0.1:54321';
+        supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+        // Your local Edge Function endpoint
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log("Running in LOCAL mode");
+    } else {
+        supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+        supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+        // Your production Edge Function endpoint
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log("Running in PRODUCTION mode");
+    }
+
+    // const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    // Use the library's global object to create your specific instance
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    //const supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+    //const supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+
+    //const supabase = supabase.createClient(supabaseUrl, supabaseKey);
     //const scriptURL = 'https://script.google.com/macros/s/AKfycbyFBua9t6iOimoZ1Th7gkcbb0orkXMVrSaNXrs0BCegDh0d2fwUh4nOrXDrXB3ey0Q/exec';
     const form = document.getElementById('dataForm');
     const modal = document.getElementById('confirmModal');
@@ -243,16 +264,17 @@
 
 finalConfirmBtn.onclick = async () => {
     const typedSurname = document.getElementById('rodName').value.trim();
+    console.log("Checking surname in database:", typedSurname);
     finalConfirmBtn.disabled = true;
     finalConfirmBtn.innerText = "Verifying Surname...";
 
     try {
 
         // 2. CHECK: Does the surname exist in the 'members' table?
-        const { data: memberData, error: memberError } = await supabase
+        const { data: memberData, error: memberError } = await supabaseClient
             .from('members')
-            .select('surname')
-            .eq('surname', typedSurname)
+            .select('cr_name')
+            .ilike('cr_name', typedSurname)
             .single();
 
         // If .single() finds no rows, 'memberData' will be null
@@ -266,18 +288,18 @@ finalConfirmBtn.onclick = async () => {
         finalConfirmBtn.innerText = " Surname Verified -- Submitting...";
         const formData = new FormData(form);
         
-        const { data, error } = await supabase
-            .from('catch_returns')
+        const { data, error } = await supabaseClient
+            .from('catch_returns_staging_table')
             .insert([ {
                 rod_name: formData.get('rodName'),
                 catch_date: formData.get('date'),
                 beat: formData.get('category'),
                 guest: form.verified.checked, // Checkbox is already boolean
-                bt_cr: Number(formData.get('v1')),
+                brown_trout_released: Number(formData.get('v1')),
                 grayling: Number(formData.get('v2')),
-                rainbow: Number(formData.get('v3')),
-                other: Number(formData.get('v4')),
-                bt_retained: Number(formData.get('v5')),
+                rainbow_trout: Number(formData.get('v3')),
+                other_species: Number(formData.get('v4')),
+                brown_trout_retained: Number(formData.get('v5')),
                 comments: formData.get('comments')
             }]);
 
@@ -312,49 +334,49 @@ finalConfirmBtn.onclick = async () => {
 };
 const historyBtn = document.getElementById('historyBtn');
 
-historyBtn.onclick = () => {
-        const nameInput = document.getElementById('rodName');
-        const name = nameInput.value.trim(); // Added .trim() to catch spaces-only entries
+historyBtn.onclick = async () => {
+    const nameInput = document.getElementById('rodName');
+    const name = nameInput.value.trim();
 
-        // Immediate prerequisite check
-        if (!name) {
-            alert("Prerequisite: Please enter your Member Name in the 'Member Name' field before requesting your data.");
-            nameInput.focus(); // Automatically puts the cursor in the field for the user
-            nameInput.style.borderColor = "red"; // Visual cue
-            return;
+    if (!name) {
+        alert("Please enter your Member Surname before requesting your data.");
+        nameInput.focus();
+        nameInput.style.borderColor = "red";
+        return;
+    }
+
+    nameInput.style.borderColor = "#ccc";
+    historyBtn.disabled = true;
+    historyBtn.innerText = "Sending Email...";
+
+    try {
+        const response = await fetch(edgeFunctionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // Use the publishable key for authorization if required by your function settings
+                'Authorization': `Bearer ${supabaseKey}` 
+            },
+            body: JSON.stringify({ surname: name })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("Success! Your catch history has been emailed to you.");
+        } else {
+            // Catches the "Member not found" or "SMTP Error" from your function
+            alert("Error: " + (result.error || "Failed to send email."));
         }
 
-        // Reset visual cue if successful
-        nameInput.style.borderColor = "#ccc";
-        
-        historyBtn.disabled = true;
-        historyBtn.innerText = "Requesting...";
-
-        fetch(`${scriptURL}?action=requestHistory&rodName=${encodeURIComponent(name)}`, {
-            method: 'GET',
-            mode: 'cors',
-            redirect: 'follow'
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
-        .then(data => {
-            if (data.result === "success") {
-                alert(data.message);
-            } else {
-                alert("Error: " + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            alert("Connection Error: " + error.message);
-        })
-        .finally(() => {
-            historyBtn.disabled = false;
-            historyBtn.innerText = "Email Me My Returns YTD";
-        });
-    };
+    } catch (error) {
+        console.error('Edge Function Error:', error);
+        alert("Connection Error: Could not reach the email service.");
+    } finally {
+        historyBtn.disabled = false;
+        historyBtn.innerText = "Email Me My Returns YTD";
+    }
+};
 
 </script>
 </body>
