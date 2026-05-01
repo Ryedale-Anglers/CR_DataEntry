@@ -45,7 +45,6 @@ PAYLOAD = {
 SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
 #SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
 
-#if not SUPABASE_CONN_STRING or not SQLITE_DB_PATH:
 if not SUPABASE_CONN_STRING:
     raise ValueError("Missing environment variable. Check your .env file.")
 
@@ -115,35 +114,6 @@ def refresh_catch_returns_data(conn):
     except Exception as e:
         print(f"❌ Catch Returns Error: {e}")
         raise e
-
-# def refresh_catch_returns_data(conn):
-#     try:
-#         sheet_id = "1QhLqiUqe9Qy5eHvDGj8k2HDtsrORytQ-KSmNAp5Sqzs"
-#         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-#         df_new = pd.read_csv(url)
-
-#         mapping = {
-#             "Timestamp": "timestamp", "Rod Name": "rod_name", "Date": "catch_date",
-#             "Beat": "beat", "Brown Trout Released": "brown_trout_released",
-#             "Grayling": "grayling", "Rainbow Trout": "rainbow_trout",
-#             "Other Species": "other_species", "Brown Trout Retained": "brown_trout_retained",
-#             "Guest": "guest", "Comments": "comments", "DNF": "dnf"
-#         }
-#         df_new.rename(columns=mapping, inplace=True)
-#         df_final = df_new[list(mapping.values())].copy()
-#         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
-#         print(f"Fetched {len(df_final)} records from Google Sheets.")
-
-#         print(f"Wiping old catch_returns_staging data...")
-#         conn.execute(text("TRUNCATE TABLE catch_returns_staging_table RESTART IDENTITY;"))
-        
-#         print(f"Uploading {len(df_final)} fresh records...")
-#         df_final.to_sql('catch_returns_staging_table', conn, if_exists='append', index=False)
-#         print("✅ Catch Returns Sync complete!")
-#     except Exception as e:
-#         # We re-raise the error so the Master Transaction knows to Rollback
-#         print(f"❌ Catch Returns Error: {e}")
-#         raise e 
 
 def refresh_reservations_table_data(csv_bytes, table_name, conn):
     try:

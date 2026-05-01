@@ -9,6 +9,9 @@ supabase/functions/.import_map.json
 .env
 .env.local
 
+# Editor setup
+.vscode/
+
 # Node/JavaScript dependencies
 node_modules/
 
@@ -35,3 +38,6 @@ env/
 
 #Logs like those from CRONTAB
 *.log
+
+#deno stuff
+.npmrc
