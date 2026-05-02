@@ -58,7 +58,7 @@
             font-weight: bold;
             justify-content: center;
             text-align: center;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
         }
 
         .beat-name-cell {
@@ -71,6 +71,7 @@
             text-overflow: ellipsis;
             background: #ecf0f1;
             border-bottom: 0.5px solid #ddd;
+            font-size: 0.6rem;
         }
 
         /* Reserved Cell Styling */
@@ -183,33 +184,27 @@
         for (let i = 10; i >= 1; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            dates.push(d.toISOString().split('T')[0]); 
+            dates.push(d.toISOString().split('T')[0]);
         }
 
-        const [beatsRes, vrcsRes, catchRes] = await Promise.all([
+        const [beatsRes, historyRes] = await Promise.all([
             supabaseClient.from('beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
-            supabaseClient.from('view_reservations_confirmed_staging').select('beat, date, cr_name').gte('date', dates[0]),
-            supabaseClient.from('catch_returns_staging_table').select('rod_name, catch_date, brown_trout_released, brown_trout_retained, grayling, comments')
+            supabaseClient.from('view_members_reserv_and_cr_history').select('beat, date, cr_name, brown_trout, grayling, comments').gte('date', dates[0])
         ]);
 
-        if (beatsRes.error || vrcsRes.error || catchRes.error) {
+        if (beatsRes.error || historyRes.error) {
             namesElement.innerHTML = "<div style='padding:10px'>Error.</div>";
             return;
         }
 
-        const catchLookup = {};
-        catchRes.data.forEach(c => {
-            catchLookup[`${c.catch_date}|${c.rod_name}`] = c;
-        });
-
         const gridData = {};
-        vrcsRes.data.forEach(res => {
-            const match = catchLookup[`${res.date}|${res.cr_name}`];
-            gridData[`${res.beat}|${res.date}`] = {
-                hasMatch: !!match,
-                bt: match ? ((match.brown_trout_released || 0) + (match.brown_trout_retained || 0)) : null,
-                gy: match ? (match.grayling ?? 0) : null,
-                comments: match ? match.comments : null
+        historyRes.data.forEach(row => {
+            const hasMatch = row.brown_trout !== null || row.grayling !== null;
+            gridData[`${row.beat}|${row.date}`] = {
+                hasMatch,
+                bt: row.brown_trout,
+                gy: row.grayling,
+                comments: row.comments
             };
         });
 
@@ -228,18 +223,17 @@
                 const data = gridData[`${b.beat}|${date}`];
                 if (data) {
                     let classes = "cell fished";
-                    
-                    // Edge awareness logic
-                    if (index < 3) classes += " popup-bottom"; 
+
+                    if (index < 3) classes += " popup-bottom";
                     if (dateIndex < 3) classes += " popup-right-grow";
-                    
+
                     let content = "";
                     if (!data.hasMatch) {
                         content = `<span class="stat-row" style="font-size: 0.42rem; margin-top: 1px;">CR Due</span>`;
                     } else {
                         content = `<span class="stat-row">T:${data.bt}</span><span class="stat-row">G:${data.gy}</span>`;
                     }
-                    
+
                     if (data.comments && data.comments.trim() !== "") {
                         classes += " has-comments";
                         content += `<span class="comment-icon"></span>`;
