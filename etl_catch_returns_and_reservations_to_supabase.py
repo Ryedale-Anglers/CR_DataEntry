@@ -98,8 +98,17 @@ def refresh_catch_returns_data(conn):
         # --- FIXES START HERE ---
         # 1. Convert Yes/No to Boolean
         df_final['guest'] = df_final['guest'].map({'Yes': True, 'No': False})
-        # Convert DNF nulls to False and ensure boolean type
-        df_final['dnf'] = df_final['dnf'].fillna(False).astype(bool)
+        #
+        #Sort out the dnf column which might have nulls and is being inserted into a boolean field
+        # 1. Map 'Yes' to True, and 'No' to False. 
+        # Anything else (like empty/NULL) will become NaN temporarily.
+        df_final['dnf'] = df_final['dnf'].map({'Yes': True, 'No': False})
+
+        # 2. Now explicitly turn those NaNs (the empty cells) into False.
+        df_final['dnf'] = df_final['dnf'].fillna(False)
+
+        # 3. Final safety check: ensure the column is a boolean type for the DB
+        df_final['dnf'] = df_final['dnf'].astype(bool)
         
         # 2. Ensure date conversion
         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
