@@ -98,6 +98,8 @@ def refresh_catch_returns_data(conn):
         # --- FIXES START HERE ---
         # 1. Convert Yes/No to Boolean
         df_final['guest'] = df_final['guest'].map({'Yes': True, 'No': False})
+        # Convert DNF nulls to False and ensure boolean type
+        df_final['dnf'] = df_final['dnf'].fillna(False).astype(bool)
         
         # 2. Ensure date conversion
         df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date

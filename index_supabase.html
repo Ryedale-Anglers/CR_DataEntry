@@ -288,13 +288,13 @@ finalConfirmBtn.onclick = async () => {
         finalConfirmBtn.innerText = " Surname Verified -- Submitting...";
         const formData = new FormData(form);
         
-        const { data, error } = await supabaseClient
+        const { data: insertData, error: insertError } = await supabaseClient
             .from('catch_returns_staging_table')
-            .insert([ {
+            .insert([{
                 rod_name: formData.get('rodName'),
                 catch_date: formData.get('date'),
                 beat: formData.get('category'),
-                guest: form.verified.checked, // Checkbox is already boolean
+                guest: form.verified.checked,
                 brown_trout_released: Number(formData.get('v1')),
                 grayling: Number(formData.get('v2')),
                 rainbow_trout: Number(formData.get('v3')),
@@ -303,12 +303,10 @@ finalConfirmBtn.onclick = async () => {
                 comments: formData.get('comments')
             }]);
 
-        if (error) {
-            alert("Database Error: " + error.message);
-            modal.style.display = 'none';
-            return; 
-        }
-
+            if (insertError) {
+                console.error('Supabase error:', JSON.stringify(insertError, null, 2));
+                return;
+            }
         alert("Success! Your catch return has been recorded. Thank you!");
         
         // Manual form reset

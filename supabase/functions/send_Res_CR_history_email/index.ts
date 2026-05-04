@@ -14,20 +14,40 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { surname } = await req.json()
-    //console.log(`Searching for: [${surname}]`);
+    // Inside your Deno.serve try block
+    const { surname, clubPassword } = await req.json();
 
-    const url = "http://172.17.0.1:54321" 
-    //get the key from a .env file
-    //const key = 
-    const supabaseAdmin = createClient(url, key)
+    // 1. Initialize admin client
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
+    // 2. Call your existing RPC function
+    const { data: isValid, error: pwError } = await supabaseAdmin
+      .rpc('verify_club_password', { entered_password: clubPassword });
+
+    // 3. Handle Errors or invalid passwords
+    if (pwError) {
+      console.error("Database RPC Error:", pwError.message);
+      throw new Error("Password verification failed");
+    }
+
+    if (!isValid) {
+      return new Response(JSON.stringify({ error: "Incorrect Club Password" }), { 
+        status: 401, 
+        headers: corsHeaders 
+      });
+    }
+
+    // 4. Proceed to fetch member and send email...
+    // 2. If it passes, proceed to your member lookup...
     const { data: member, error: _memberError } = await supabaseAdmin
       .from('members')
       .select('email_address, cr_name')
       .ilike('cr_name', surname)
       .maybeSingle();
-
+   
     if (!member) {
       return new Response(JSON.stringify({ error: `No member found` }), { status: 404, headers: corsHeaders });
     }
@@ -123,51 +143,44 @@ const htmlBody = `
   </html>
 `;
 
-    // --- INTERNAL SMTP CONNECT ---
-    // --- VERBOSE LOGGING & MAILPIT SEND ---
-    const MAILPIT_API_URL = "http://supabase_inbucket_CR_DataEntry:8025/api/v1/send";
-
     // 1. Log the raw member object again to be 100% sure
     //console.log("[DEBUG] Raw Member Object:", JSON.stringify(member));
 
     // --- THE FINAL (FOR REAL THIS TIME) PAYLOAD ---
+    const RESEND_API_URL = "https://api.resend.com/emails";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
+
     const emailPayload = {
-      From: { 
-        Name: "Ryedale Anglers", 
-        Email: "records@ryedaleanglers.co.uk" // Changed from Address to Email
-      },
-      To: [{ 
-        Name: member.cr_name || "Member", 
-        Email: member.email_address // Already matched to your previous success
-      }],
-      Subject: "Catch History",
-      HTML: htmlBody,
+      from: "Ryedale Anglers <onboarding@resend.dev>",  // temp
+      //to: [member.email_address],
+      to: ["delivered@resend.dev"],                      // temp
+      subject: "Catch History",
+      html: htmlBody,
     };
 
-    //console.log(`[DEBUG] Final delivery attempt for: ${member.email_address}`);
-
     try {
-      const apiResponse = await fetch(MAILPIT_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const apiResponse = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+        },
         body: JSON.stringify(emailPayload),
       });
 
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text();
-        throw new Error(`Mailpit rejected: ${errorText}`);
+        throw new Error(`Resend rejected: ${errorText}`);
       }
 
-      //console.log("[DEBUG] SUCCESS! Check http://127.0.0.1:54324");
-
       return new Response(
-        JSON.stringify({ message: 'Email delivered to Mailpit' }), 
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        JSON.stringify({ message: "Email sent via Resend" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
 
-} catch (apiErr) {
+    } catch (apiErr) {
       const msg = apiErr instanceof Error ? apiErr.message : "Unknown API Error";
-      throw new Error(`MAILPIT_API_FAILURE: ${msg}`);
+      throw new Error(`RESEND_API_FAILURE: ${msg}`);
     }
 
   } catch (error) {
