@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RAC In Season Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            /* Reduce top padding from 20px to 10px */
+            padding: 10px 20px 20px 20px; 
+        }
+        header {
+            text-align: center;
+            /* Reduce bottom margin from 30px to 10px */
+            margin-bottom: 10px; 
+        }
+        
+        /* The 2x3 Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, 320px); 
+            gap: 8px; 
+            justify-content: center;
+            /* Reduce top padding from 10px to 0 */
+            padding: 0 0 10px 0; 
+            margin: 0 auto;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 4px;
+            padding: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            width: 320px; 
+            /* Change fixed height to min-height */
+            min-height: 180px; 
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box; 
+        }
+
+        .chart-card h3 {
+            margin: 0; /* Remove the bottom margin entirely */
+            padding-bottom: 2px; /* Very small buffer */
+            font-size: 0.8rem;
+            color: #444;
+            text-transform: uppercase;
+        }
+
+        .canvas-container {
+            flex-grow: 1;
+            position: relative;
+            min-height: 0; 
+            /* REMOVE or INCREASE this line */
+            max-height: none; 
+        }
+        
+        /* Specifically target the second card to allow it to grow */
+        .dashboard-grid .chart-card:nth-child(2) {
+            grid-row: span 2; 
+            height: 100%; /* Forces it to fill the grid-row span */
+        }
+
+                /* Apply the limit only to standard single-row cards */
+        .chart-card:not(:nth-child(2)) .canvas-container {
+            max-height: 140px;
+        }
+
+        /* Ensure the second card container takes all available space */
+        .dashboard-grid .chart-card:nth-child(2) .canvas-container {
+            max-height: none;
+            height: 100%;
+        }
+
+        /* This forces two columns to stay side-by-side on most laptop screens 
+        until the window is very narrow */
+        @media (max-width: 680px) {
+            .dashboard-grid {
+                grid-template-columns: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h3>RAC in-season dashboard</h3>
+</header>
+
+<div class="dashboard-grid">
+    <div class="chart-card">
+        <h3>Reservations per week - Week Beginning</h3>
+        <div class="canvas-container">
+            <canvas id="reservationsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Placeholders 2-6 -->
+    <div class="chart-card">
+        <h3>Reservations by beat</h3>
+        <div class="canvas-container">
+            <canvas id="beatChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>How often have members booked a beat?</h3>
+        <div class="canvas-container">
+            <canvas id="frequencyChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Most frequent catch size</h3>
+        <div class="canvas-container">
+            <canvas id="catchFreqChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Trout : Grayling ratio</h3>
+        <div class="canvas-container">
+            <canvas id="speciesPieChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+    // Register globally ONCE at the very start
+    Chart.register(ChartDataLabels);
+  
+    let supabaseUrl, supabaseKey, edgeFunctionUrl;
+
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        supabaseUrl = 'http://127.0.0.1:54321';
+        supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log("Running in LOCAL mode");
+    } else {
+        supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+        supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log("Running in PRODUCTION mode");
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    async function initDashboard() {
+        const { data, error } = await supabase
+            .from('view_in_season_dashb_1_count_res_cr')
+            .select('*')
+            .order('week_starting', { ascending: true });
+
+        if (data) {
+            const labels = data.map(d => d.week_starting.substring(5));
+            const catchData = data.map(d => d.catches_returns || 0);
+            // Use the RAW reservation count instead of calculating the difference
+            const totalReservations = data.map(d => d.reservations || 0); 
+
+            renderChart('reservationsChart', labels, catchData, totalReservations);
+        }
+    }
+
+    async function initBeatDashboard() {
+        const { data, error } = await supabase
+            .from('view_in_season_dashb_2_count_reserv_by_beat')
+            .select('*');
+
+        if (data) {
+            const labels = data.map(d => d.beat); // Your short names
+            const counts = data.map(d => d.reservation_count);
+
+            renderBeatChart('beatChart', labels, counts);
+        }
+    }
+
+    async function initFrequencyDashboard() {
+        const { data, error } = await supabase
+            .from('view_in_season_dashb_3_freq_of_reservation') 
+            .select('*')
+            .order('reservation_count', { ascending: true });
+
+        if (data) {
+            // Change this: just return the raw number
+            const labels = data.map(d => d.reservation_count);
+            const counts = data.map(d => d.frequency);
+
+            renderFrequencyChart('frequencyChart', labels, counts);
+        }
+    }
+
+    function renderFrequencyChart(canvasId, labels, counts) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Number of Members',
+                    data: counts,
+                    backgroundColor: '#039dfc',
+                    borderRadius: 4,
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#444',
+                        font: { weight: 'bold', size: 10 }
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 15 } },
+                plugins: { 
+                    legend: { display: false },
+                    datalabels: { display: true }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'No. of Reservations',
+                            font: { size: 10, weight: 'bold' }
+                        },
+                        grid: { display: false },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { precision: 0, font: { size: 10 } } 
+                    }
+                }
+            }
+        });
+    }
+
+    function renderBeatChart(canvasId, labels, counts) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Reservations',
+                    data: counts,
+                    backgroundColor: '#ed260c',
+                    borderRadius: 2,
+                    barPercentage: 0.8,      // Increase this (0.1 to 1.0) to make bars thicker
+                    categoryPercentage: 0.9  // Increase this to reduce space between groups
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'right',
+                        offset: 4,
+                        color: '#666',
+                        font: { size: 10, weight: 'bold' },
+                        formatter: (value) => value // Always show the number
+                    }
+                },
+                scales: {
+                    x: { 
+                        beginAtZero: true,
+                        grid: { display: false },
+                        ticks: { display: false } // Hide X ticks because datalabels show the value
+                    },
+                    y: { 
+                            grid: { display: false },
+                            ticks: { 
+                                autoSkip: false,
+                                padding: 10, // Give the names some breathing room from the bars
+                                font: { size: 11 } 
+                            }
+                        }
+                },
+                layout: {
+                    padding: {
+                        top: 15,    // Buffer for the beat labels at the top
+                        right: 30   // Space for the datalabel numbers
+                    }
+                }
+            }
+        });
+    }
+
+
+    function renderChart(canvasId, labels, catchData, totalReservations) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Catch Returns',
+                        data: catchData,
+                        backgroundColor: '#2ecc71',
+                        stack: 'group1',
+                        datalabels: {
+                            anchor: 'center',
+                            align: 'center',
+                            color: 'white',
+                            font: { weight: 'bold', size: 10 },
+                            formatter: (value, context) => {
+                                const total = totalReservations[context.dataIndex];
+                                if (total === 0) return '';
+                                const percentage = Math.round((value / total) * 100);
+                                return percentage + '%';
+                            }
+                        }
+                    },
+                    {
+                        label: 'Reservations',
+                        data: totalReservations,
+                        backgroundColor: '#bdc3c7',
+                        stack: 'group1',
+                        // NEW: Enable and format labels for the grey bar
+                        datalabels: {
+                            display: true,
+                            anchor: 'end',    // Put it at the top of the bar
+                            align: 'top',     // Position it just above the bar
+                            color: '#444',    // Dark grey text to match header
+                            font: { weight: 'bold', size: 11 },
+                            formatter: (value) => value > 0 ? value : '' // Show the raw total
+                        }
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 5,    // Reduced from 20 to bring chart closer to legend
+                            bottom: 0
+                        }
+                    },
+                    plugins: {
+                            legend: { 
+                                display: true, 
+                                position: 'top',
+                                align: 'end', // This moves the legend to the right, often clearing more vertical space
+                                labels: {
+                                    boxWidth: 10,
+                                    padding: 8, // Reduced padding to bring it closer to the TOP of the canvas
+                                    font: { size: 11 }
+                                }
+                            },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        datalabels: {
+                            clip: false // Allow labels to sit outside the bar area
+                        }
+                    },
+                scales: {
+                    x: { stacked: true, ticks: { font: { size: 9 } } },
+                    y: { 
+                        stacked: false, 
+                        beginAtZero: true, 
+                        ticks: { font: { size: 9 } },
+                        // Suggested max gives extra "headroom" for the numbers
+                        suggestedMax: Math.max(...totalReservations) * 1.1 
+                    }
+                }
+            }
+        });
+    }
+
+    async function initCatchFreqDashboard() {
+        const { data, error } = await supabase
+            .from('view_in_season_dashb_4_freq_catchsize')
+            .select('*')
+            .order('catchsize', { ascending: true });
+
+        if (data) {
+            // Change this line to just return the number
+            const labels = data.map(d => d.catchsize); 
+            const counts = data.map(d => d.frequency);
+
+            renderCatchFreqChart('catchFreqChart', labels, counts);
+        }
+    }
+
+    function renderCatchFreqChart(canvasId, labels, counts) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels, // Now just numeric via the init function
+                datasets: [{
+                    label: 'Number of Outings',
+                    data: counts,
+                    backgroundColor: '#fc5603',
+                    borderRadius: 4,
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#444',
+                        font: { weight: 'bold', size: 10 }
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 15 } },
+                plugins: { 
+                    legend: { display: false } 
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'No. of fish caught',
+                            font: { size: 10, weight: 'bold' }
+                        },
+                        grid: { display: false },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { precision: 0, font: { size: 10 } } 
+                    }
+                }
+            }
+        });
+    }
+
+    async function initSpeciesDashboard() {
+        const { data, error } = await supabase
+            .from('catch_returns_staging_table')
+            .select('brown_trout_released, brown_trout_retained, grayling');
+
+        if (data) {
+            // Calculate totals manually or create a specific view for this
+            const trout = data.reduce((sum, row) => 
+                sum + (row.brown_trout_released || 0) + (row.brown_trout_retained || 0), 0);
+            const grayling = data.reduce((sum, row) => sum + (row.grayling || 0), 0);
+
+            renderSpeciesPieChart('speciesPieChart', [trout, grayling]);
+        }
+    }
+
+    function renderSpeciesPieChart(canvasId, totals) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Trout', 'Grayling'],
+                datasets: [{
+                    data: totals,
+                    backgroundColor: ['#42f581', '#7b42f5'],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { boxWidth: 12, font: { size: 11 } }
+                    },
+                    datalabels: {
+                        color: '#fff',
+                        font: { weight: 'bold', size: 12 },
+                        formatter: (value, ctx) => {
+                            let sum = 0;
+                            let dataArr = ctx.chart.data.datasets[0].data;
+                            dataArr.map(data => { sum += data; });
+                            let percentage = (value * 100 / sum).toFixed(0) + "%";
+                            return value > 0 ? percentage : '';
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadAllDashboards() {
+        await initDashboard();
+        await initBeatDashboard();
+        await initFrequencyDashboard();
+        await initCatchFreqDashboard();
+        await initSpeciesDashboard();
+    }
+
+    loadAllDashboards();
+</script>
+</body>
+</html>
