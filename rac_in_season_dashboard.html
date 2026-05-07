@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAC In Season Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
@@ -10,77 +11,74 @@
             font-family: sans-serif;
             background-color: #f4f7f6;
             margin: 0;
-            /* Reduce top padding from 20px to 10px */
-            padding: 10px 20px 20px 20px; 
+            padding: 10px 20px; 
         }
+
         header {
             text-align: center;
-            /* Reduce bottom margin from 30px to 10px */
             margin-bottom: 10px; 
         }
-        
-        /* The 2x3 Grid Layout */
+
+        header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #2c3e50;
+        }
+
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, 320px); 
-            gap: 8px; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            grid-auto-rows: 220px; /* The "Anchor" height for one row */
+            gap: 12px; 
             justify-content: center;
-            /* Reduce top padding from 10px to 0 */
-            padding: 0 0 10px 0; 
+            padding: 10px;
             margin: 0 auto;
+            max-width: 1200px;
         }
 
         .chart-card {
             background: white;
             border-radius: 4px;
-            padding: 8px;
+            padding: 10px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            width: 320px; 
-            /* Change fixed height to min-height */
-            min-height: 180px; 
             display: flex;
             flex-direction: column;
             box-sizing: border-box; 
+            overflow: hidden;
+            height: 100%; /* Fill the 220px (or 452px) grid slot */
         }
 
         .chart-card h3 {
-            margin: 0; /* Remove the bottom margin entirely */
-            padding-bottom: 2px; /* Very small buffer */
+            margin: 0 0 5px 0;
             font-size: 0.8rem;
             color: #444;
             text-transform: uppercase;
         }
 
+        /* The Container - This is the "magic" that removes the padding */
         .canvas-container {
-            flex-grow: 1;
+            flex-grow: 1;    /* Fills all remaining space in the card */
             position: relative;
-            min-height: 0; 
-            /* REMOVE or INCREASE this line */
-            max-height: none; 
+            width: 100%;
+            min-height: 0;   /* Crucial for Chart.js responsiveness inside Flexbox */
         }
-        
-        /* Specifically target the second card to allow it to grow */
+
+        /* Specific logic for the Tall Beat Chart */
         .dashboard-grid .chart-card:nth-child(2) {
             grid-row: span 2; 
-            height: 100%; /* Forces it to fill the grid-row span */
         }
 
-                /* Apply the limit only to standard single-row cards */
-        .chart-card:not(:nth-child(2)) .canvas-container {
-            max-height: 140px;
-        }
-
-        /* Ensure the second card container takes all available space */
-        .dashboard-grid .chart-card:nth-child(2) .canvas-container {
-            max-height: none;
-            height: 100%;
-        }
-
-        /* This forces two columns to stay side-by-side on most laptop screens 
-        until the window is very narrow */
-        @media (max-width: 680px) {
+        /* Mobile Responsiveness */
+        @media (max-width: 480px) {
             .dashboard-grid {
-                grid-template-columns: 320px;
+                grid-auto-rows: auto; 
+            }
+            .chart-card {
+                height: 280px; /* Uniform height for standard mobile cards */
+            }
+            .dashboard-grid .chart-card:nth-child(2) {
+                grid-row: span 1;
+                height: 450px; /* Keep the beat list long on mobile */
             }
         }
     </style>
@@ -98,8 +96,6 @@
             <canvas id="reservationsChart"></canvas>
         </div>
     </div>
-
-    <!-- Placeholders 2-6 -->
     <div class="chart-card">
         <h3>Reservations by beat</h3>
         <div class="canvas-container">
@@ -214,6 +210,10 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 layout: { padding: { top: 15 } },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 plugins: { 
                     legend: { display: false },
                     datalabels: { display: true }
@@ -257,6 +257,10 @@
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 plugins: {
                     legend: { display: false },
                     datalabels: {
@@ -340,6 +344,10 @@
             options: {
                 responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     layout: {
                         padding: {
                             top: 5,    // Reduced from 20 to bring chart closer to legend
@@ -417,6 +425,10 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 layout: { padding: { top: 15 } },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 plugins: { 
                     legend: { display: false } 
                 },
@@ -469,6 +481,10 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 plugins: {
                     legend: {
                         position: 'right',
