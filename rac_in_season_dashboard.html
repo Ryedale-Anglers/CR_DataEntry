@@ -84,7 +84,6 @@
     </style>
 </head>
 <body>
-
 <header>
     <h3>RAC in-season dashboard</h3>
 </header>
@@ -115,9 +114,9 @@
         </div>
     </div>
     <div class="chart-card">
-        <h3>Trout : Grayling ratio</h3>
+        <h3>Trout / Grayling ratio</h3>
         <div class="canvas-container">
-            <canvas id="speciesPieChart"></canvas>
+            <canvas id="graylingPropChart"></canvas>
         </div>
     </div>
 </div>
@@ -130,11 +129,26 @@
   
     let supabaseUrl, supabaseKey, edgeFunctionUrl;
 
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-        supabaseUrl = 'http://127.0.0.1:54321';
+    // Get the current hostname
+    const hostname = window.location.hostname;
+
+    // Check if it's localhost or a local network IP (e.g., 192.168.x.x or 10.x.x.x)
+    const isLocal = 
+        hostname === "localhost" || 
+        hostname === "127.0.0.1" || 
+        hostname.startsWith("192.168.") || 
+        hostname.startsWith("10.") || 
+        hostname.endsWith(".local"); // For Mac/Linux mDNS names
+
+    if (isLocal) {
+        // IMPORTANT: Use your laptop's actual IP address here instead of 127.0.0.1
+        // 127.0.0.1 on a phone refers to the phone itself, not your laptop!
+        const localIP = hostname === "localhost" ? "127.0.0.1" : hostname;
+        
+        supabaseUrl = `http://${localIP}:54321`;
         supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
         edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
-        console.log("Running in LOCAL mode");
+        console.log("Running in LOCAL mode at " + localIP);
     } else {
         supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
         supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
@@ -300,29 +314,28 @@
 
     function renderChart(canvasId, labels, catchData, totalReservations) {
         const ctx = document.getElementById(canvasId).getContext('2d');
-
         new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Catch Returns',
-                        data: catchData,
-                        backgroundColor: '#2ecc71',
-                        stack: 'group1',
-                        datalabels: {
-                            anchor: 'center',
-                            align: 'center',
-                            color: 'white',
-                            font: { weight: 'bold', size: 10 },
-                            formatter: (value, context) => {
-                                const total = totalReservations[context.dataIndex];
-                                if (total === 0) return '';
-                                const percentage = Math.round((value / total) * 100);
-                                return percentage + '%';
-                            }
+                    label: 'Catch Returns',
+                    data: catchData,
+                    backgroundColor: '#2ecc71',
+                    stack: 'group1',
+                    datalabels: {
+                        anchor: 'center',
+                        align: 'center',
+                        color: 'white',
+                        font: { weight: 'bold', size: 10 },
+                        formatter: (value, context) => {
+                            const total = totalReservations[context.dataIndex];
+                            if (total === 0) return '';
+                            const percentage = Math.round((value / total) * 100);
+                            return percentage + '%';
                         }
+                    }
                     },
                     {
                         label: 'Reservations',
@@ -451,67 +464,80 @@
         });
     }
 
-    async function initSpeciesDashboard() {
-        const { data, error } = await supabase
-            .from('catch_returns_staging_table')
-            .select('brown_trout_released, brown_trout_retained, grayling');
+async function initGraylingPropDashboard() {
+    const { data, error } = await supabase
+        .from('view_in_season_dashb_5_prop_grayling')
+        .select('*')
+        .order('season_week_start', { ascending: true });
 
-        if (data) {
-            // Calculate totals manually or create a specific view for this
-            const trout = data.reduce((sum, row) => 
-                sum + (row.brown_trout_released || 0) + (row.brown_trout_retained || 0), 0);
-            const grayling = data.reduce((sum, row) => sum + (row.grayling || 0), 0);
+    const labels = data.map(d => (d.season_week_start || '').substring(5));
+    const totalData = data.map(d => d.total_caught || 0);
+    const graylingData = data.map(d => d.total_grayling || 0);
+    
+    renderGraylingPropChart('graylingPropChart', labels, graylingData, totalData);
+}
 
-            renderSpeciesPieChart('speciesPieChart', [trout, grayling]);
-        }
-    }
-
-    function renderSpeciesPieChart(canvasId, totals) {
-        const ctx = document.getElementById(canvasId).getContext('2d');
-        new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['Trout', 'Grayling'],
-                datasets: [{
-                    data: totals,
-                    backgroundColor: ['#42f581', '#7b42f5'],
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: { boxWidth: 12, font: { size: 11 } }
-                    },
-                    datalabels: {
-                        color: '#fff',
-                        font: { weight: 'bold', size: 12 },
-                        formatter: (value, ctx) => {
-                            let sum = 0;
-                            let dataArr = ctx.chart.data.datasets[0].data;
-                            dataArr.map(data => { sum += data; });
-                            let percentage = (value * 100 / sum).toFixed(0) + "%";
-                            return value > 0 ? percentage : '';
+function renderGraylingPropChart(canvasId, labels, graylingData, totalData) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const maxVal = (totalData.length > 0) ? Math.max(...totalData) : 10;
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                label: 'Grayling',
+                data: graylingData,
+                backgroundColor: '#7b42f5',
+                stack: 'g1',
+                datalabels: {
+                        anchor: 'center',
+                        align: 'center',
+                        color: 'white',
+                        font: { weight: 'bold', size: 10 },
+                        formatter: (value, context) => {
+                            const total = totalData[context.dataIndex];
+                            if (total === 0) return '';
+                            const percentage = Math.round((value / total) * 100);
+                            return percentage + '%';
                         }
                     }
+                },
+                {
+                    label: 'Total',
+                    data: totalData,
+                    backgroundColor: '#bdc3c7',
+                    stack: 'g1',
+                    datalabels: {
+                        display: true,
+                        anchor: 'end',    // Put it at the top of the bar
+                        align: 'top',     // Position it just above the bar
+                        color: '#444',    // Dark grey text to match header
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value) => value > 0 ? value : '' // Show the raw total
+                    }
                 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { stacked: false, suggestedMax: maxVal * 1.2 }
             }
-        });
-    }
+        }
+    });
+}
 
+    // Update your loader
     async function loadAllDashboards() {
         await initDashboard();
         await initBeatDashboard();
         await initFrequencyDashboard();
         await initCatchFreqDashboard();
-        await initSpeciesDashboard();
+        await initGraylingPropDashboard(); // Replaces initSpeciesDashboard
     }
 
     loadAllDashboards();
