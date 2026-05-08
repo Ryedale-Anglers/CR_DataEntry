@@ -97,8 +97,8 @@ def generate_report_sections(conn):
     # Clean names
     #df_members['cr_name'] = df_members['cr_name'].str.strip().str.title()
 
-    total_reservations = df_members['num_booked'].sum()
-    total_catch_returns = df_members['catch_returns'].sum()
+    total_reservations = df_members['reservations_count'].sum()
+    total_catch_returns = df_members['returns_count'].sum()
     total_variance = df_members['variance'].sum()
 
     # 95: Add the total row
@@ -106,10 +106,11 @@ def generate_report_sections(conn):
 
     #Start the Typst Table String
     member_table_typst = """
-    #text(weight: "bold", 1.2em, fill: blue)[Member Reservations v Catch Returns]
+    #text(weight: "bold", 0.9em, fill: blue)[Member Reservations v Catch Returns]
+    #set text(size: 0.8em)//sets the text size for the table below
     #table(
-    columns: (4.9cm, 1.6cm, 1.6cm, 1.6cm),
-    inset: 6pt,
+    columns: (4.1cm, 1.4cm, 1.4cm, 1.4cm),
+    inset: 4pt,
     align: (left, center, center, center),
     fill: (x, y) => if y == 0 { gray.lighten(80%) },
     stroke: 0.5pt + gray,
@@ -121,7 +122,7 @@ def generate_report_sections(conn):
     # Populate rows
     for _, row in df_members.iterrows():
         # We use int() to ensure the total doesn't show as a float (e.g., 250.0)
-        member_table_typst += f'  [{row["member_name"]}], [{int(row["num_booked"])}], [{int(row["catch_returns"])}], [{int(row["variance"])}],\n'
+        member_table_typst += f'  [{row["cr_name"]}], [{int(row["reservations_count"])}], [{int(row["returns_count"])}], [{int(row["variance"])}],\n'
 
     member_table_typst += ")"
     # 4. Save to a separate file to keep the main script clean
@@ -129,25 +130,27 @@ def generate_report_sections(conn):
         f.write(member_table_typst)
 
     #Fetch the data for the Aged Debt Analysis section
-    query_aged_debt = "SELECT * FROM view_missing_cr_age_report"
+    query_aged_debt = "SELECT * FROM view_missing_cr_age_report2"
+    
     df_aged_debt = pd.read_sql_query(query_aged_debt, conn)
 
     aged_debt_table_typst = """
     #text(weight: "bold", 1.2em, fill: blue)[Returns Missing by Age]
+    #set text(size: 0.8em)//sets the text size for the table below
     #table(
-    columns: (5cm, 2cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.8cm),
-    inset: 6pt,
-    align: (left, center, center, center, center, center, center),
+    columns: (4cm, 2cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.8cm),
+    inset: 4pt,
+    align: (left, center, center, center, center, center, center, center),
     fill: (x, y) => if y == 0 { gray.lighten(80%) },
     stroke: 0.5pt + gray,
     table.header(
-        [*Member Name*], [*Returns Submitted*],[*8-14 Days*],[*15-21 Days*],[*21-28 Days*], [*28+ Days*], [*Total Missing*]
+        [*Member Name*], [*Returns Submitted*],[*1-7 Days*],[*8-14 Days*],[*15-21 Days*],[*21-28 Days*], [*28+ Days*], [*Total Missing*]
     ),
     """
     # Populate rows
     for _, row in df_aged_debt.iterrows():
         # We use int() to ensure the total doesn't show as a float (e.g., 250.0)
-        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Returns Submitted"])}], [{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["21-28 Days"])}], [{int(row["28+ Days"])}],[{int(row["Total Missing"])}],\n'
+        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Returns Submitted"])}], [{int(row["1-7 Days"])}],[{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["21-28 Days"])}], [{int(row["28+ Days"])}],[{int(row["Total Missing"])}],\n'
 
     aged_debt_table_typst += ")"
     # 4. Save to a separate file to keep the main script clean
