@@ -64,21 +64,6 @@ def run_reservations_download():
         print(f"Network error: {e}")
         return None
 
-def process_reservations_file(downloaded_file):
-    # The 'static' path your DB script looks for
-    target_path = "./reservations_data/reservations_confirmed.csv"
-    
-    # Ensure the directory exists so the script doesn't crash
-    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    
-    try:
-        # Copy the dated file to the static filename (overwrites if exists)
-        shutil.copy2(downloaded_file, target_path)
-        print(f"File staged: {downloaded_file} -> {target_path}")
-        
-    except Exception as e:
-        print(f"Error during file processing: {e}")
-
 def refresh_catch_returns_data(conn):
     try:
         sheet_id = GOOGLE_SHEETS_ID
@@ -132,7 +117,9 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
         csv_buffer = io.BytesIO(csv_bytes)
         
         # Use the buffer instead of a file path
-        df_reservations = pd.read_csv(csv_buffer, skiprows=1, encoding='utf-8-sig')
+        #df_reservations = pd.read_csv(csv_buffer, skiprows=1, encoding='utf-8-sig')
+        # Skip the first row (header) and provide your own names
+        df_reservations = pd.read_csv(csv_buffer, skiprows=2, names=['date', 'resource', 'name'])
         
         df_reservations.columns = df_reservations.columns.str.strip()
         print(f"Fetched {len(df_reservations)} records from memory buffer.")
@@ -144,14 +131,20 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
         conn.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY;"))
 
         # 1. THE MAPPING DICTIONARY
+        #res_mapping = {
+        #    "Start date": "date",
+        #    "Resource": "resource",
+        #    "Name": "name"
+        #}
+        # 1. THE MAPPING DICTIONARY (Updated to match actual data)
         res_mapping = {
             "Start date": "date",
-            "Resource": "resource",
+            "Beat": "resource",  # Changed 'Resource' to 'Beat'
             "Name": "name"
         }
         
         # 2. Apply the rename
-        df_reservations.rename(columns=res_mapping, inplace=True)  
+        #df_reservations.rename(columns=res_mapping, inplace=True)  
         
         # 3. Explicitly select the columns you want to send
         # We EXCLUDE 'id' and 'cr_name' here because:
