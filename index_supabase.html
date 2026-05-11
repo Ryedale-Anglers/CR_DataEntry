@@ -13,6 +13,11 @@
             padding: 10px; 
             color: #333;
             background-color: #f4f7f6;
+            /* Added for the expanding layout */
+            height: 100vh; 
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
         }
 
         .form-container {
@@ -20,6 +25,9 @@
             padding: 15px; 
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;         /* New */
+            flex-direction: column; /* New */
+            flex-grow: 1;          /* New - ensures it fills the body height */
         }
 
         h1 { 
@@ -39,12 +47,15 @@
 
         .row {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap; /* Change from 'wrap' to 'nowrap' to force the horizontal layout */
             gap: 10px; 
             margin-bottom: 10px; 
         }
         
-        .flex-item { flex: 1; min-width: 140px; }
+        .flex-item { 
+            flex: 1; 
+            min-width: 80px; /* Reduced from 140px */
+        }
 
         label { 
             display: block; 
@@ -53,13 +64,32 @@
             font-size: 0.8rem; 
         }
 
-        input[type="text"], input[type="date"], input[type="number"], select, textarea {
+        /* Universal input styling */
+        input[type="text"], 
+        input[type="password"], 
+        input[type="date"], 
+        input[type="number"], 
+        select {
             width: 100%; 
             padding: 6px 8px; 
             border: 1px solid #ccc; 
             border-radius: 4px; 
             box-sizing: border-box;
             font-size: 14px; 
+            height: 34px; /* Matches height for all standard inputs */
+        }
+
+        /* The expanding Observations field */
+        textarea {
+            width: 100%;
+            flex-grow: 1; /* This tells the textarea to eat up all available space */
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            resize: none; /* Prevents manual resizing which can break mobile layouts */
+            margin-bottom: 10px;
         }
 
         .numeric-grid {
@@ -103,15 +133,38 @@
             cursor: pointer;
             margin-top: 5px;
         }
+        /* Keep buttons at the bottom */
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: auto; /* Pushes the button row to the very bottom of the flex form */
+        }
         #historyBtn {
             font-size: 14px;       /* Makes text smaller to fit more words */
             line-height: 1.2;     /* Keeps text from looking squashed */
             padding: 10px 5px;    /* Slightly reduces height to balance the look */
             white-space: normal;  /* Allows text to wrap to a second line if needed */
         }
+        #dataForm {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1; /* Makes the form fill the container */
+        }
 
-        @media screen and (max-width: 400px) {
-            .numeric-grid { grid-template-columns: 1fr 1fr; } 
+        @media screen and (max-width: 480px) {
+            h1 { font-size: 1.1rem; }
+            h2 { font-size: 0.85rem; }
+            
+            /* Keep the inputs and labels small to save space */
+            label { font-size: 0.75rem; }
+            input, select { font-size: 13px; }
+            
+            /* Ensure the numeric grid stays as a 3-column layout if possible, 
+            or 2-column if it gets too cramped */
+            .numeric-grid { 
+                grid-template-columns: repeat(3, 1fr); 
+                gap: 5px;
+            }
         }
     </style>
 </head>
@@ -121,20 +174,24 @@
     <h1>Ryedale Anglers Club</h1>
     <form id="dataForm">
         <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
-        
+            
         <div class="row">
-            <div class="flex-item">
+            <div class="flex-item" style="flex: 1;">
+                <label for="clubPassword">Club Password</label>
+                <input type="password" id="clubPassword" name="clubPassword" placeholder="Required" required>
+            </div>
+            <div class="flex-item" style="flex: 2;">
                 <label for="rodName">Member Surname</label>
                 <input type="text" id="rodName" name="rodName" placeholder="Surname" required>
-            </div>
-            <div class="flex-item">
-                <label for="date">Catch Date</label>
-                <input type="date" id="date" name="date" required>
             </div>
         </div>
 
         <div class="row">
-            <div style="flex: 1;">
+            <div class="flex-item" style="flex: 1;">
+                <label for="date">Catch Date</label>
+                <input type="date" id="date" name="date" required>
+            </div>
+            <div class="flex-item" style="flex: 2;">
                 <label for="category">Beat</label>
                 <select id="category" name="category" required>
                     <option value="">-- Select --</option>
@@ -156,7 +213,7 @@
                     <option value="Lower Harome">Lower Harome</option>
                     <option value="Fishing Hut & Railway Bridge">Fishing Hut & Railway Bridge</option>
                 </select>
-            </div> 
+            </div>
         </div>
 
         <h2>Your Catch Return</h2>
@@ -186,13 +243,12 @@
                 <input type="checkbox" id="verified" name="verified">
             </div>
         </div>
-
         <h2>Observations</h2>
-        <textarea name="comments" rows="2" placeholder="Conditions, flies, etc..."></textarea>
+        <textarea name="comments" placeholder="Conditions, flies, etc..."></textarea>
 
-        <div style="margin-top: 15px; display: flex; gap: 10px;">
+        <div class="button-row">
             <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
-            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email Me My Returns YTD</button>
+            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email My Returns YTD</button>
         </div>
     </form>
 </div>
@@ -211,6 +267,37 @@
 <script>
     let supabaseUrl, supabaseKey, edgeFunctionUrl;
 
+    async function validateClubPassword() {
+        const pwdInput = document.getElementById('clubPassword');
+        const password = pwdInput.value;
+
+        if (!password) {
+            alert("Please enter the Club Password.");
+            pwdInput.focus();
+            return false;
+        }
+
+        // Calling your existing Supabase RPC function
+        const { data: isValid, error } = await supabaseClient.rpc('verify_club_password', { 
+            entered_password: password 
+        });
+
+        if (error) {
+            console.error("Auth error:", error);
+            alert("Error verifying password. Please try again.");
+            return false;
+        }
+
+        if (!isValid) {
+            alert("Incorrect Club Password.");
+            pwdInput.value = ""; // Clear incorrect password
+            pwdInput.focus();
+            return false;
+        }
+
+        return true;
+    }
+
     if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
         supabaseUrl = 'http://127.0.0.1:54321';
         supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
@@ -223,7 +310,7 @@
         // Your production Edge Function endpoint
         edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
         console.log("Running in PRODUCTION mode");
-    }
+    }    
 
     // const supabase = supabase.createClient(supabaseUrl, supabaseKey);
     // Use the library's global object to create your specific instance
@@ -239,56 +326,78 @@
     const summary = document.getElementById('summaryContent');
     const finalConfirmBtn = document.getElementById('finalConfirm');
 
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const formData = new FormData(form);
         
-        let summaryHTML = `
-            <strong>Member:</strong> ${formData.get('rodName')}<br>
-            <strong>Date:</strong> ${formData.get('date')}<br>
-            <strong>Beat:</strong> ${formData.get('category')}<br>
-            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
-            <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>BT (C&R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
-            <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
-            <strong>BT Retained:</strong> ${formData.get('v5')}<br>
-            <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>Observations:</strong> ${formData.get('comments') || 'None'}
-        `;
+        const submitBtn = document.getElementById('submitBtn');
+        const originalText = submitBtn.innerText;
         
-        summary.innerHTML = summaryHTML;
-        modal.style.display = 'flex';
+        // 1. UI Feedback: Disable button while checking
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Verifying Identity...";
+
+        try {
+            // 2. Verify Club Password
+            const authenticated = await validateClubPassword();
+            if (!authenticated) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = originalText;
+                return;
+            }
+
+            // 3. Verify Member Surname
+            const typedSurname = document.getElementById('rodName').value.trim();
+            const { data: memberData, error: memberError } = await supabaseClient
+                .from('members')
+                .select('cr_name')
+                .ilike('cr_name', typedSurname)
+                .single();
+
+            if (!memberData) {
+                alert("Surname '" + typedSurname + "' not found in club records. Please check spelling.");
+                document.getElementById('rodName').focus();
+                submitBtn.disabled = false;
+                submitBtn.innerText = originalText;
+                return;
+            }
+
+            // 4. If both pass, build and show the Modal
+            const formData = new FormData(form);
+            let summaryHTML = `
+                <strong>Member:</strong> ${memberData.cr_name}<br>
+                <strong>Date:</strong> ${formData.get('date')}<br>
+                <strong>Beat:</strong> ${formData.get('category')}<br>
+                <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>BT (C&R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
+                <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
+                <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+            `;
+            
+            summary.innerHTML = summaryHTML;
+            modal.style.display = 'flex';
+
+        } catch (err) {
+            console.error("Verification error:", err);
+            alert("Connection Error: Could not verify details.");
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalText;
+        }
     });
 
     document.getElementById('cancelBtn').onclick = () => { modal.style.display = 'none'; };
 
 finalConfirmBtn.onclick = async () => {
-    const typedSurname = document.getElementById('rodName').value.trim();
-    console.log("Checking surname in database:", typedSurname);
     finalConfirmBtn.disabled = true;
-    finalConfirmBtn.innerText = "Verifying Surname...";
+    finalConfirmBtn.innerText = "Submitting...";
 
+    const formData = new FormData(form);
+    
     try {
-
-        // 2. CHECK: Does the surname exist in the 'members' table?
-        const { data: memberData, error: memberError } = await supabaseClient
-            .from('members')
-            .select('cr_name')
-            .ilike('cr_name', typedSurname)
-            .single();
-
-        // If .single() finds no rows, 'memberData' will be null
-        if (!memberData) {
-            alert("Surname '" + typedSurname + "' not found in club records. Please check spelling.");
-            finalConfirmBtn.disabled = false;
-            finalConfirmBtn.innerText = "Confirm";
-            return; // STOP HERE
-        }
-
-        finalConfirmBtn.innerText = " Surname Verified -- Submitting...";
-        const formData = new FormData(form);
-        
-        const { data: insertData, error: insertError } = await supabaseClient
+        const { error: insertError } = await supabaseClient
             .from('catch_returns_staging_table')
             .insert([{
                 rod_name: formData.get('rodName'),
@@ -303,29 +412,16 @@ finalConfirmBtn.onclick = async () => {
                 comments: formData.get('comments')
             }]);
 
-            if (insertError) {
-                console.error('Supabase error:', JSON.stringify(insertError, null, 2));
-                return;
-            }
-        alert("Success! Your catch return has been recorded. Thank you!");
-        
-        // Manual form reset
-        form.v1.value = 0;
-        form.v2.value = 0;
-        form.v3.value = 0;
-        form.v4.value = 0;
-        form.v5.value = 0;
-        form.verified.checked = false;
-        form.comments.value = "";
-        form.date.value = ""; 
-        
+        if (insertError) throw insertError;
+
+        alert("Success! Your catch return has been recorded.");
+        form.reset(); 
         modal.style.display = 'none';
 
     } catch (err) {
-        console.error("Submission failed:", err);
-        alert("Connection Error: Please check your internet and try again.");
+        console.error('Insert Error:', err);
+        alert("Database Error: " + err.message);
     } finally {
-        // This always runs, ensuring the button is never stuck
         finalConfirmBtn.disabled = false;
         finalConfirmBtn.innerText = "Confirm";
     }
@@ -333,6 +429,10 @@ finalConfirmBtn.onclick = async () => {
 const historyBtn = document.getElementById('historyBtn');
 
 historyBtn.onclick = async () => {
+    // 1. Check Password First
+    const authenticated = await validateClubPassword();
+    if (!authenticated) return;
+
     const nameInput = document.getElementById('rodName');
     const name = nameInput.value.trim();
 
