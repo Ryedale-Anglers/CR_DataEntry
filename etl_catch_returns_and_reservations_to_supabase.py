@@ -177,7 +177,7 @@ def match_and_update_reservation_names(conn):
 
         # FIX: Use bind parameters for the WHERE clause
         result = conn.execute(
-            text("SELECT cr_name FROM members WHERE year_of_membership = :yr"),
+            text("SELECT cr_name FROM public.view_member_names WHERE year_of_membership = :yr"),
             {"yr": membership_year}
         )
         master_lookup = {row[0].upper(): row[0] for row in result.fetchall()}
