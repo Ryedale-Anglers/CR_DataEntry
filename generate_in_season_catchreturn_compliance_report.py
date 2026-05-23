@@ -130,7 +130,7 @@ def generate_report_sections(conn):
         f.write(member_table_typst)
 
     #Fetch the data for the Aged Debt Analysis section
-    query_aged_debt = "SELECT * FROM view_missing_cr_age_report2"
+    query_aged_debt = "SELECT * FROM view_missing_cr_age_report3"
     
     df_aged_debt = pd.read_sql_query(query_aged_debt, conn)
 
@@ -138,19 +138,19 @@ def generate_report_sections(conn):
     #text(weight: "bold", 1.2em, fill: blue)[Returns Missing by Age]
     #set text(size: 0.8em)//sets the text size for the table below
     #table(
-    columns: (4cm, 2cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.8cm),
+    columns: (4cm, 1.6cm, 1.6cm, 1.8cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.6cm),
     inset: 4pt,
-    align: (left, center, center, center, center, center, center, center),
+    align: (left, center, center, center, center, center, center, center, center, center),
     fill: (x, y) => if y == 0 { gray.lighten(80%) },
     stroke: 0.5pt + gray,
     table.header(
-        [*Member Name*], [*Returns Submitted*],[*1-7 Days*],[*8-14 Days*],[*15-21 Days*],[*21-28 Days*], [*28+ Days*], [*Total Missing*]
+        [*Member Name*], [*Beats Booked*], [*Catch Returns*],[*Pct Compliance*],[*1-7 Days*],[*8-14 Days*],[*15-21 Days*],[*21-28 Days*], [*28+ Days*], [*Total Missing*]
     ),
     """
     # Populate rows
     for _, row in df_aged_debt.iterrows():
         # We use int() to ensure the total doesn't show as a float (e.g., 250.0)
-        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Returns Submitted"])}], [{int(row["1-7 Days"])}],[{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["21-28 Days"])}], [{int(row["28+ Days"])}],[{int(row["Total Missing"])}],\n'
+        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Total Reservations"])}], [{int(row["Returns Submitted"])}], [{int(row["pct_compliance"])}], [{int(row["1-7 Days"])}],[{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["21-28 Days"])}], [{int(row["28+ Days"])}],[{int(row["Total Missing"])}],\n'
 
     aged_debt_table_typst += ")"
     # 4. Save to a separate file to keep the main script clean
