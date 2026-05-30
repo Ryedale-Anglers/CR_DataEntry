@@ -189,7 +189,7 @@
 
         const [beatsRes, historyRes] = await Promise.all([
             supabaseClient.from('beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
-            supabaseClient.from('view_members_reserv_and_cr_history').select('beat, date, cr_name, brown_trout, grayling, comments').gte('date', dates[0])
+            supabaseClient.from('view_members_reserv_and_cr_history').select('beat, date, brown_trout, grayling, comments').gte('date', dates[0])
         ]);
 
         if (beatsRes.error || historyRes.error) {
