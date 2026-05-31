@@ -130,7 +130,7 @@ def generate_report_sections(conn):
         f.write(member_table_typst)
 
     #Fetch the data for the Aged Debt Analysis section
-    query_aged_debt = "SELECT * FROM view_missing_cr_age_report3"
+    query_aged_debt = "SELECT * FROM private.view_missing_cr_age_report3"
     
     df_aged_debt = pd.read_sql_query(query_aged_debt, conn)
 
