@@ -186,25 +186,22 @@ def match_and_update_reservation_names(conn):
         updates = []
 
         for row_id, full_name in result.fetchall():
-                    if not full_name: continue
-                    parts = full_name.strip().split(' ')
-                    if len(parts) < 2: continue
-                        
-                    surname = parts[-1].upper()
-                    given_names = parts[:-1] # Everything except the last name
-                    
-                    # 1. Generate all possible prefixed keys (e.g., 'DROBERTS', 'JROBERTS')
-                    possible_keys = [f"{part[0].upper()}{surname}" for part in given_names if part]
-                    # 2. Add the standalone surname as a fallback
-                    possible_keys.append(surname)
-                    
-                    # Find the first key that exists in your master lookup
-                    matched_key = next((key for key in possible_keys if key in master_lookup), None)
-                    
-                    if matched_key:
-                        updates.append({"cr_name": master_lookup[matched_key], "id": row_id})
-                    else:
-                        print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
+            if not full_name: continue
+            parts = full_name.strip().split(' ')
+            if len(parts) < 2: continue
+                
+            initial, surname = parts[0][0].upper(), parts[-1].upper()
+            prefixed_key, surname_key = f"{initial}{surname}", surname
+            
+            if prefixed_key in master_lookup:
+                updates.append({"cr_name": master_lookup[prefixed_key], "id": row_id})
+            elif surname_key in master_lookup:
+                updates.append({"cr_name": master_lookup[surname_key], "id": row_id})
+            else:
+                # This will trigger the try/except block below
+                #raise ValueError(f"No match found in members table for name: {full_name} (ID: {row_id})")
+                print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
+
         if updates:
             conn.execute(
                 text("UPDATE reservations_confirmed_staging SET cr_name = :cr_name WHERE id = :id"),
