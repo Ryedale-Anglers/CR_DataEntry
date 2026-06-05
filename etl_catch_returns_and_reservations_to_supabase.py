@@ -171,11 +171,9 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
 
 def match_and_update_reservation_names(conn):
     try:    
-        # FIX: Use .scalar() for single values
         start_date = conn.execute(text("SELECT target_start_date FROM year_param WHERE id = 1")).scalar()
         membership_year = conn.execute(text("SELECT target_year FROM year_param WHERE id = 1")).scalar()
 
-        # FIX: Use bind parameters for the WHERE clause
         result = conn.execute(
             text("SELECT cr_name FROM public.view_member_names WHERE year_of_membership = :yr"),
             {"yr": membership_year}
@@ -186,25 +184,32 @@ def match_and_update_reservation_names(conn):
         updates = []
 
         for row_id, full_name in result.fetchall():
-                    if not full_name: continue
-                    parts = full_name.strip().split(' ')
-                    if len(parts) < 2: continue
-                        
-                    surname = parts[-1].upper()
-                    given_names = parts[:-1] # Everything except the last name
-                    
-                    # 1. Generate all possible prefixed keys (e.g., 'DROBERTS', 'JROBERTS')
-                    possible_keys = [f"{part[0].upper()}{surname}" for part in given_names if part]
-                    # 2. Add the standalone surname as a fallback
-                    possible_keys.append(surname)
-                    
-                    # Find the first key that exists in your master lookup
-                    matched_key = next((key for key in possible_keys if key in master_lookup), None)
-                    
-                    if matched_key:
-                        updates.append({"cr_name": master_lookup[matched_key], "id": row_id})
-                    else:
-                        print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
+            if not full_name: continue
+            parts = full_name.strip().split()
+            if len(parts) < 2: continue
+
+            surname = parts[-1].upper()
+            given_names = parts[:-1]  # Everything except the last name
+
+            # Tier 1: Initial + surname (e.g. BPUNDYKE, JPUNDYKE)
+            possible_keys = [f"{part[0].upper()}{surname}" for part in given_names if part]
+
+            # Tier 2: Full given name(s) + surname, no spaces (e.g. FRANKCOLLIN, FREDCOLLIN)
+            # Handles the case where initials alone are ambiguous between two members
+            for part in given_names:
+                if part:
+                    possible_keys.append(f"{part.upper()}{surname}")
+
+            # Tier 3: Standalone surname as last resort (e.g. PUNDYKE)
+            possible_keys.append(surname)
+
+            matched_key = next((key for key in possible_keys if key in master_lookup), None)
+
+            if matched_key:
+                updates.append({"cr_name": master_lookup[matched_key], "id": row_id})
+            else:
+                print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
+
         if updates:
             conn.execute(
                 text("UPDATE reservations_confirmed_staging SET cr_name = :cr_name WHERE id = :id"),
@@ -214,6 +219,163 @@ def match_and_update_reservation_names(conn):
 
     except Exception as e:
         print(f"❌ Name Matching Error: {e}")
+        raise e
+    
+def insert_dnf_for_beat_mismatch(conn):
+    """
+    Detects the edge case where a member has a reservation for Beat_A on a given
+    date, but submitted their (non-guest) catch return for Beat_B.
+    The trigger will have already created a synthetic reservation for Beat_B.
+    This function inserts a DNF catch return for Beat_A to mark it as not fished.
+    """
+    try:
+        # Find reservations where the member's non-guest catch return that day
+        # was for a DIFFERENT beat than the one reserved.
+        # We join through reservation_beats -> beats to get the catch-return
+        # beat name that corresponds to the reservation's resource.
+        mismatch_sql = text("""
+            SELECT
+                r.date,
+                r.cr_name,
+                b.beat AS reserved_beat_cr_name
+            FROM reservations_confirmed_staging r
+            -- Map the reservation's resource to the beats.beat name
+            INNER JOIN reservation_beats rb ON rb.beat = r.resource
+            INNER JOIN beats b ON b.id = rb.beat_id
+            -- Find that member's non-guest catch return(s) for the same date
+            INNER JOIN catch_returns_staging_table cr
+                ON cr.rod_name = r.cr_name
+                AND cr.catch_date = r.date
+                AND cr.guest = false
+                AND cr.dnf = false
+            -- The catch return beat differs from the reservation beat
+            WHERE cr.beat != b.beat
+            -- Exclude synthetic reservations (already created by the trigger
+            -- for the beat the member DID fish - we don't want to DNF those)
+            AND r.name != 'Synthetic'
+        """)
+
+        result = conn.execute(mismatch_sql)
+        mismatches = result.fetchall()
+
+        if not mismatches:
+            print("✅ Beat mismatch check: No DNF insertions required.")
+            return
+
+        print(f"⚠️  Beat mismatch detected: {len(mismatches)} DNF record(s) to insert.")
+
+        for date, cr_name, reserved_beat in mismatches:
+            print(f"   Inserting DNF for {cr_name} on {date} for beat '{reserved_beat}'")
+
+        # Build list of dicts for the bulk insert
+        dnf_records = [
+            {
+                "rod_name":              row.cr_name,
+                "catch_date":            row.date,
+                "beat":                  row.reserved_beat_cr_name,
+                "dnf":                   True,
+                "guest":                 False,
+                "brown_trout_released":  0,
+                "brown_trout_retained":  0,
+                "grayling":              0,
+                "rainbow_trout":         0,
+                "other_species":         0,
+                "comments":              "Auto-marked DNF: member fished a different beat",
+                "timestamp":             datetime.now().isoformat(),
+            }
+            for row in mismatches
+        ]
+
+        conn.execute(
+            text("""
+                INSERT INTO catch_returns_staging_table
+                    (rod_name, catch_date, beat, dnf, guest,
+                     brown_trout_released, brown_trout_retained, grayling,
+                     rainbow_trout, other_species, comments, timestamp)
+                VALUES
+                    (:rod_name, :catch_date, :beat, :dnf, :guest,
+                     :brown_trout_released, :brown_trout_retained, :grayling,
+                     :rainbow_trout, :other_species, :comments, :timestamp)
+            """),
+            dnf_records
+        )
+
+        print(f"✅ Beat mismatch DNF insert complete. {len(dnf_records)} record(s) inserted.")
+
+    except Exception as e:
+        print(f"❌ Beat Mismatch DNF Error: {e}")
+        raise e
+    
+def insert_synthetic_reservations(conn):
+    """
+    Replicates the logic of the check_and_insert_reservation trigger for the
+    bulk-loaded catch returns, since Pandas to_sql bypasses row-level triggers.
+    For every catch return that has no matching reservation (by date, cr_name,
+    and beat_id), inserts a synthetic reservation record.
+    Note: where two reservation resources share the same beat_id (e.g.
+    '17. Fishing Hut' and '18. Railway Bridge' both map to beats.id=4),
+    a catch return for that beat satisfies ALL reservations for that beat_id,
+    so no synthetic record is created for the secondary resource.
+    """
+    try:
+        missing_sql = text("""
+            SELECT
+                cr.catch_date,
+                cr.rod_name,
+                rb.beat    AS resource
+            FROM catch_returns_staging_table cr
+            -- Map CR beat name to beat_id
+            INNER JOIN beats b ON b.beat = cr.beat
+            -- Get ALL reservation resources that share this beat_id
+            INNER JOIN reservation_beats rb ON rb.beat_id = b.id
+            -- Only where no reservation exists for this date/cr_name
+            -- for ANY resource sharing the same beat_id
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM reservations_confirmed_staging r
+                INNER JOIN reservation_beats rb2 ON rb2.beat = r.resource
+                WHERE r.date    = cr.catch_date
+                AND   r.cr_name = cr.rod_name
+                AND   rb2.beat_id = b.id
+            )
+        """)
+
+        result = conn.execute(missing_sql)
+        missing = result.fetchall()
+
+        if not missing:
+            print("✅ Synthetic reservation check: None required.")
+            return
+
+        print(f"⚠️  {len(missing)} synthetic reservation(s) to insert.")
+        for row in missing:
+            print(f"   Synthetic reservation: {row.rod_name} / {row.resource} / {row.catch_date}")
+
+        synthetic_records = [
+            {
+                "date":     row.catch_date,
+                "resource": row.resource,
+                "name":     "Synthetic",
+                "cr_name":  row.rod_name,
+            }
+            for row in missing
+        ]
+
+        conn.execute(
+            text("""
+                INSERT INTO reservations_confirmed_staging
+                    (date, resource, name, cr_name)
+                VALUES
+                    (:date, :resource, :name, :cr_name)
+                ON CONFLICT (date, cr_name, resource) DO NOTHING
+            """),
+            synthetic_records
+        )
+
+        print(f"✅ Synthetic reservation insert complete. {len(synthetic_records)} record(s) inserted.")
+
+    except Exception as e:
+        print(f"❌ Synthetic Reservation Error: {e}")
         raise e
 
 # --- EXECUTION AREA ---
@@ -240,8 +402,14 @@ if __name__ == "__main__":
                 )
                 
                 # 3. Match Names & Catch Returns
+                print(f"Starting - match_and_update_reservation_name")
                 match_and_update_reservation_names(conn)
+                print(f"Starting - Refresh Catch Returns")
                 refresh_catch_returns_data(conn)
+                print(f"Starting - insert_synthetic_reservations")
+                insert_synthetic_reservations(conn)  
+                print(f"Starting - insert_dnf_for_beat_mismatch")
+                insert_dnf_for_beat_mismatch(conn)
                 
                 print("✅ All steps completed.")
         else:
