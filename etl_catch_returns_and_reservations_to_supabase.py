@@ -377,6 +377,42 @@ def insert_synthetic_reservations(conn):
     except Exception as e:
         print(f"❌ Synthetic Reservation Error: {e}")
         raise e
+    
+def deduplicate_catch_returns(conn):
+    """
+    Where a member has submitted more than one non-guest, non-DNF catch return
+    for the same rod_name + catch_date + beat, keep only the latest by timestamp
+    and delete the earlier ones.
+    """
+    try:
+        dedup_sql = text("""
+            DELETE FROM catch_returns_staging_table
+            WHERE id IN (
+                SELECT id
+                FROM (
+                    SELECT
+                        id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY rod_name, catch_date, beat
+                            ORDER BY timestamp DESC
+                        ) AS rn
+                    FROM catch_returns_staging_table
+                    WHERE guest = false
+                      AND dnf   = false
+                ) ranked
+                WHERE rn > 1
+            )
+        """)
+        result = conn.execute(dedup_sql)
+        count = result.rowcount
+        if count == 0:
+            print("✅ Duplicate CR check: No duplicates found.")
+        else:
+            print(f"⚠️  Duplicate CR check: Deleted {count} earlier duplicate record(s).")
+
+    except Exception as e:
+        print(f"❌ Duplicate CR deduplication error: {e}")
+        raise e
 
 # --- EXECUTION AREA ---
 if __name__ == "__main__":
@@ -406,6 +442,8 @@ if __name__ == "__main__":
                 match_and_update_reservation_names(conn)
                 print(f"Starting - Refresh Catch Returns")
                 refresh_catch_returns_data(conn)
+                print(f"De-duplicating Catch Returns")
+                deduplicate_catch_returns(conn)
                 print(f"Starting - insert_synthetic_reservations")
                 insert_synthetic_reservations(conn)  
                 print(f"Starting - insert_dnf_for_beat_mismatch")

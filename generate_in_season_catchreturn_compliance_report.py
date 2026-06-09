@@ -17,6 +17,7 @@ def setup():
 
     # --- CONFIGURATION FROM ENV ---
     SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
+    #SUPABASE_CONN_STRING = os.getenv('LOCAL_SUPABASE_URL')
     LOCAL_RAC_REPORT_REPOSITORY_PATH = os.getenv('LOCAL_RAC_REPORT_REPOSITORY_PATH')
 
     if not SUPABASE_CONN_STRING :
@@ -94,17 +95,14 @@ def generate_report_sections(conn):
     query = "select * from public.view_secrep_membername_catchreturns_count_operational"
     df_members = pd.read_sql_query(query, conn)
 
-    # Clean names
-    #df_members['cr_name'] = df_members['cr_name'].str.strip().str.title()
-
     total_reservations = df_members['reservations_count'].sum()
     total_catch_returns = df_members['returns_count'].sum()
     total_variance = df_members['variance'].sum()
 
-    # 95: Add the total row
+    # Add the total row
     df_members.loc[len(df_members)] = ['Total', total_reservations, total_catch_returns, total_variance]
 
-    #Start the Typst Table String
+    # Start the Typst Table String
     member_table_typst = """
     #text(weight: "bold", 0.9em, fill: blue)[Member Reservations v Catch Returns]
     #set text(size: 0.8em)//sets the text size for the table below
@@ -121,39 +119,42 @@ def generate_report_sections(conn):
 
     # Populate rows
     for _, row in df_members.iterrows():
-        # We use int() to ensure the total doesn't show as a float (e.g., 250.0)
         member_table_typst += f'  [{row["cr_name"]}], [{int(row["reservations_count"])}], [{int(row["returns_count"])}], [{int(row["variance"])}],\n'
 
     member_table_typst += ")"
-    # 4. Save to a separate file to keep the main script clean
+    
     with open("member_submissions.typ", "w", encoding="utf-8") as f:
         f.write(member_table_typst)
 
-    #Fetch the data for the Aged Debt Analysis section
-    query_aged_debt = "SELECT * FROM private.view_missing_cr_age_report3"
-    
+    # =================================================================
+    # AGED DEBT ANALYSIS SECTION (FIXED TO MATCH 10 COLUMNS)
+    # =================================================================
+    query_aged_debt = "SELECT * FROM private.view_missing_cr_age_report5"
     df_aged_debt = pd.read_sql_query(query_aged_debt, conn)
 
+    # Typst Table - Configured with EXACTLY 10 column widths and headers
     aged_debt_table_typst = """
     #text(weight: "bold", 1.2em, fill: blue)[Returns Missing by Age]
     #set text(size: 0.8em)//sets the text size for the table below
     #table(
-    columns: (4cm, 1.6cm, 1.6cm, 1.8cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.6cm),
+    columns: (4cm, 1.6cm, 1.6cm, 1.4cm, 1.8cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm, 1.4cm),
     inset: 4pt,
     align: (left, center, center, center, center, center, center, center, center, center),
     fill: (x, y) => if y == 0 { gray.lighten(80%) },
     stroke: 0.5pt + gray,
     table.header(
-        [*Member Name*], [*Beats Booked*], [*Catch Returns*],[*Pct Compliance*],[*1-7 Days*],[*8-14 Days*],[*15-21 Days*],[*21-28 Days*], [*28+ Days*], [*Total Missing*]
+        [*Member Name*], [*Beats Booked*], [*Catch Returns*], [*CRs Due*], [*% Compliance*], [*1-7 Days*], [*8-14 Days*], [*15-21 Days*], [*22-28 Days*], [*28+ Days*]
     ),
     """
+    
     # Populate rows
     for _, row in df_aged_debt.iterrows():
-        # We use int() to ensure the total doesn't show as a float (e.g., 250.0)
-        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Total Reservations"])}], [{int(row["Returns Submitted"])}], [{int(row["pct_compliance"])}], [{int(row["1-7 Days"])}],[{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["21-28 Days"])}], [{int(row["28+ Days"])}],[{int(row["Total Missing"])}],\n'
-
+        # Extracted directly using the exact column keys from your query dataset
+        aged_debt_table_typst += f'  [{row["member_name"]}], [{int(row["Reservations"])}], [{int(row["Catch Returns"])}], [{int(row["CRs Due"])}], [{int(row["pct_compliance"])}\\%], [{int(row["1-7 Days"])}], [{int(row["8-14 Days"])}], [{int(row["15-21 Days"])}], [{int(row["22-28 Days"])}], [{int(row["28+ Days"])}],\n'
+    
+    # Close the table string OUTSIDE of the loop
     aged_debt_table_typst += ")"
-    # 4. Save to a separate file to keep the main script clean
+
     with open("aged_debt_analysis.typ", "w", encoding="utf-8") as f:
         f.write(aged_debt_table_typst)
 
@@ -162,10 +163,11 @@ def generate_report_sections(conn):
     #include "member_submissions.typ"
     #pagebreak()
     #include "aged_debt_analysis.typ"
-     #text(weight: "regular", 1em, fill: blue)[-- End of Report --]
+    #text(weight: "regular", 1em, fill: blue)[-- End of Report --]
     """
-    with open("sec_catch_report_operational_sections.typ", "w") as f:
+    with open("sec_catch_report_operational_sections.typ", "w", encoding="utf-8") as f:
         f.write(final_report_content)
+
 
 if __name__ == "__main__":
     try:
