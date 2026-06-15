@@ -1,0 +1,4 @@
+drop view view_members_reserv_and_cr_history;
+drop view private.view_missing_cr_age_report2;
+drop view private.view_missing_cr_age_report3;
+drop view private.view_missing_cr_age_report4;
