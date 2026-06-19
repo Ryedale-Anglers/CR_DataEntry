@@ -330,14 +330,8 @@
                     datalabels: {
                         anchor: 'center',
                         align: 'center',
-                        rotation: -90,
                         color: 'white',
                         font: { weight: 'bold', size: 10 },
-                        display: (context) => {
-                            const value = context.dataset.data[context.dataIndex];
-                            const total = totalReservations[context.dataIndex];
-                            return total > 0 && (value / total) > 0.15;
-                        },
                         formatter: (value, context) => {
                             const total = totalReservations[context.dataIndex];
                             if (total === 0) return '';
