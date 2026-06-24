@@ -171,8 +171,8 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
 
 def match_and_update_reservation_names(conn):
     try:    
-        start_date = conn.execute(text("SELECT target_start_date FROM year_param WHERE id = 1")).scalar()
-        membership_year = conn.execute(text("SELECT target_year FROM year_param WHERE id = 1")).scalar()
+        start_date = conn.execute(text("SELECT target_start_date FROM private.year_param WHERE id = 1")).scalar()
+        membership_year = conn.execute(text("SELECT target_year FROM private.year_param WHERE id = 1")).scalar()
 
         result = conn.execute(
             text("SELECT cr_name FROM public.view_member_names WHERE year_of_membership = :yr"),

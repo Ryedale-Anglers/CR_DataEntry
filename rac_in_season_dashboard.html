@@ -55,7 +55,7 @@
             text-transform: uppercase;
         }
         .catch-size-card h3 {
-            margin-bottom: 15px;
+            margin-bottom: 2px;
         }
 
         /* The Container - This is the "magic" that removes the padding */
@@ -117,7 +117,7 @@
         </div>
     </div>
     <div class="chart-card">
-        <h3>Trout / Grayling ratio</h3>
+        <h3>%age of catch is Grayling</h3>
         <div class="canvas-container">
             <canvas id="graylingPropChart"></canvas>
         </div>
@@ -215,12 +215,7 @@
                     data: counts,
                     backgroundColor: '#039dfc',
                     borderRadius: 4,
-                    datalabels: {
-                        anchor: 'end',
-                        align: 'top',
-                        color: '#444',
-                        font: { weight: 'bold', size: 10 }
-                    }
+                    datalabels: { display: false }
                 }]
             },
             options: {
@@ -247,7 +242,12 @@
                     },
                     y: { 
                         beginAtZero: true, 
-                        ticks: { precision: 0, font: { size: 10 } } 
+                        ticks: { precision: 0, font: { size: 10 } },
+                        title: {
+                            display: true,
+                            text: 'No. of Members',
+                            font: { size: 10, weight: 'bold' }
+                        }
                     }
                 }
             }
@@ -471,7 +471,12 @@
                     },
                     y: { 
                         beginAtZero: true, 
-                        ticks: { precision: 0, font: { size: 10 } } 
+                        ticks: { precision: 0, font: { size: 10 } },
+                        title: {
+                            display: true,
+                            text: 'No. of Catch Returns',
+                            font: { size: 10, weight: 'bold' }
+                        }
                     }
                 }
             }
