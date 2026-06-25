@@ -191,12 +191,10 @@
 
     async function initFrequencyDashboard() {
         const { data, error } = await supabase
-            .from('view_in_season_dashb_3_freq_of_reservation') 
-            .select('*')
+            .rpc('get_private_dashb_3_data')
             .order('reservation_count', { ascending: true });
 
         if (data) {
-            // Change this: just return the raw number
             const labels = data.map(d => d.reservation_count);
             const counts = data.map(d => d.frequency);
 
