@@ -167,7 +167,7 @@
 
         if (data) {
             const labels = data.map(d => d.week_starting.substring(5));
-            const catchData = data.map(d => d.catches_returns || 0);
+            const catchData = data.map(d => d.catch_returns || 0);
             // Use the RAW reservation count instead of calculating the difference
             const totalReservations = data.map(d => d.reservations || 0); 
 

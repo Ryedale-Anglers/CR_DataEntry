@@ -81,5 +81,6 @@ AS $function$
   SELECT week_starting, reservations, catch_returns FROM private.view_in_season_dashb_1_count_res_cr;
 $function$
 ;
+GRANT EXECUTE ON FUNCTION public.get_private_dashb_1_data() TO authenticated, anon;
 
 drop view public.view_in_season_dashb_1_count_res_cr;
