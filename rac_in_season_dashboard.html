@@ -162,8 +162,7 @@
 
     async function initDashboard() {
         const { data, error } = await supabase
-            .from('view_in_season_dashb_1_count_res_cr')
-            .select('*')
+            .rpc('get_private_dashb_1_data')
             .order('week_starting', { ascending: true });
 
         if (data) {
