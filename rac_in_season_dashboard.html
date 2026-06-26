@@ -177,8 +177,7 @@
 
     async function initBeatDashboard() {
         const { data, error } = await supabase
-            .from('view_in_season_dashb_2_count_reserv_by_beat')
-            .select('*');
+            .rpc('get_private_dashb_2_data')
 
         if (data) {
             const labels = data.map(d => d.beat); // Your short names
@@ -408,8 +407,7 @@
 
     async function initCatchFreqDashboard() {
         const { data, error } = await supabase
-            .from('view_in_season_dashb_4_freq_catchsize')
-            .select('*')
+            .rpc('get_private_dashb_4_data')
             .order('catchsize', { ascending: true });
 
         if (data) {
@@ -482,8 +480,7 @@
 
 async function initGraylingPropDashboard() {
     const { data, error } = await supabase
-        .from('view_in_season_dashb_5_prop_grayling')
-        .select('*')
+        .rpc('get_private_dashb_5_data')
         .order('season_week_start', { ascending: true });
 
     const labels = data.map(d => (d.season_week_start || '').substring(5));
