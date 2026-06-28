@@ -188,8 +188,8 @@
         }
 
         const [beatsRes, historyRes] = await Promise.all([
-            supabaseClient.from('beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
-            supabaseClient.from('view_members_reserv_and_cr_history_anonymous').select('beat, date, brown_trout, grayling, comments').gte('date', dates[0])
+            supabaseClient.from('private.beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
+            supabaseClient.rpc('get_private_reserv_cr_hist_anon_data').gte('date', dates[0])
         ]);
 
         if (beatsRes.error || historyRes.error) {

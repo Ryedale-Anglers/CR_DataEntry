@@ -1,0 +1,3 @@
+drop view public.view_members_reserv_and_cr_history_anonymous;
+drop view public.view_catch_returns_staging_table_anonymous;
+
