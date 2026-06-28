@@ -188,7 +188,7 @@
         }
 
         const [beatsRes, historyRes] = await Promise.all([
-            supabaseClient.from('private.beats').select('id, beat, river_order').neq('id', '18').order('river_order', { ascending: true }),
+            supabaseClient.rpc('get_private_beats_anon_data'),
             supabaseClient.rpc('get_private_reserv_cr_hist_anon_data').gte('date', dates[0])
         ]);
 
