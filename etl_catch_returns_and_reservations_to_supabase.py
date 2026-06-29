@@ -42,8 +42,8 @@ PAYLOAD = {
 
 # 1. Supabase Connection ---
 # --- CONFIGURATION FROM ENV ---
-#SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
-SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
+SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
+#SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
 
 if not SUPABASE_CONN_STRING:
     raise ValueError("Missing environment variable. Check your .env file.")
