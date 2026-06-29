@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>RAC Catch Returns Data Entry</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 10px;
+            color: #333;
+            background-color: #f4f7f6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .form-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        h1 {
+            color: #1a365d;
+            border-bottom: 2px solid #1a365d;
+            padding-bottom: 5px;
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+        }
+
+        h2 {
+            color: #2c5282;
+            margin: 15px 0 8px 0;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .flex-item {
+            flex: 1;
+            min-width: 80px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 3px;
+            font-size: 0.8rem;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="date"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            height: 34px;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            resize: none;
+            margin-bottom: 10px;
+        }
+
+        .numeric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .grid-checkbox-wrapper {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            height: 100%;
+        }
+
+        .grid-checkbox-wrapper label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+        }
+
+        .grid-checkbox-wrapper input[type="checkbox"] {
+            margin: 0;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #004a99;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        #historyBtn {
+            font-size: 14px;
+            line-height: 1.2;
+            padding: 10px 5px;
+            white-space: normal;
+        }
+
+        #dataForm {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        /* Login card extras */
+        .env-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .env-badge.local {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+
+        .env-badge.prod {
+            background-color: #d1e7dd;
+            color: #0a3622;
+            border: 1px solid #198754;
+        }
+
+        .login-group {
+            margin-bottom: 12px;
+        }
+
+        .login-error {
+            color: #c0392b;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: #fdf2f2;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            display: none;
+        }
+
+        @media screen and (max-width: 480px) {
+            h1 { font-size: 1.1rem; }
+            h2 { font-size: 0.85rem; }
+            label { font-size: 0.75rem; }
+            input, select { font-size: 13px; }
+            .numeric-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Login screen — shown until both surname and password are validated -->
+<div id="loginCard" class="form-container">
+    <h1>Ryedale Anglers Club</h1>
+    <span id="envBadge" class="env-badge"></span>
+    <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
+
+    <div class="login-group">
+        <label for="loginSurname">Member Surname</label>
+        <input type="text" id="loginSurname" placeholder="Surname" autocomplete="off">
+    </div>
+    <div class="login-group">
+        <label for="loginPassword">Club Password</label>
+        <input type="password" id="loginPassword" placeholder="Club password" autocomplete="off">
+    </div>
+
+    <div id="loginError" class="login-error"></div>
+    <button id="loginBtn" style="margin-top: 10px;">Enter</button>
+</div>
+
+<!-- Data entry form — revealed after successful login -->
+<div id="dataSection" style="display: none; flex-direction: column; flex-grow: 1;">
+<div class="form-container">
+    <h1>Ryedale Anglers Club</h1>
+    <form id="dataForm">
+        <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
+
+        <div class="row">
+            <div class="flex-item" style="flex: 1;">
+                <label for="date">Catch Date</label>
+                <input type="date" id="date" name="date" required>
+            </div>
+            <div class="flex-item" style="flex: 2;">
+                <label for="rodName">Member Surname</label>
+                <input type="text" id="rodName" name="rodName" placeholder="Surname" required>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="flex-item" style="flex: 1;">
+                <label for="category">Beat</label>
+                <select id="category" name="category" required>
+                    <option value="">-- Select --</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- DNF row: when checked, collapses catch and observations sections -->
+        <div style="margin-bottom: 10px;">
+            <div id="dnfWrapper" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:4px; border:1px solid #e0e0e0; cursor:pointer;" onclick="document.getElementById('dnf').click()">
+                <input type="checkbox" id="dnf" name="dnf" onclick="event.stopPropagation()" style="width:20px; height:20px; cursor:pointer; margin:0; flex-shrink:0;">
+                <label for="dnf" style="font-size:0.9rem; font-weight:bold; cursor:pointer; margin:0; user-select:none;">Did Not Fish</label>
+            </div>
+        </div>
+
+        <div id="catchSection">
+        <h2>Your Catch Return</h2>
+        <div class="numeric-grid">
+            <div>
+                <label>BT C&amp;R</label>
+                <input type="number" name="v1" min="0" max="40" value="0">
+            </div>
+            <div>
+                <label>Grayling</label>
+                <input type="number" name="v2" min="0" max="40" value="0">
+            </div>
+            <div>
+                <label>Rainbow</label>
+                <input type="number" name="v3" min="0" max="40" value="0">
+            </div>
+            <div>
+                <label>Other</label>
+                <input type="number" name="v4" min="0" max="40" value="0">
+            </div>
+            <div>
+                <label>BT Retained</label>
+                <input type="number" name="v5" min="0" max="40" value="0">
+            </div>
+            <div class="grid-checkbox-wrapper">
+                <label for="verified">Guest?</label>
+                <input type="checkbox" id="verified" name="verified">
+            </div>
+        </div>
+        </div><!-- end catchSection -->
+
+        <div id="observationsSection">
+        <h2>Observations</h2>
+        <textarea name="comments" placeholder="Conditions, flies, etc..."></textarea>
+        </div><!-- end observationsSection -->
+
+        <div class="button-row">
+            <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
+            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email My Returns YTD</button>
+        </div>
+    </form>
+</div>
+</div>
+
+<!-- Confirmation modal -->
+<div id="confirmModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+    <div style="background:white; padding:20px; border-radius:8px; max-width:350px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;">Review Entry</h3>
+        <div id="summaryContent" style="font-size:0.85rem; line-height:1.4; margin:10px 0;"></div>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button id="finalConfirm" style="flex:2; background:#27ae60; padding:10px;">Confirm</button>
+            <button id="cancelBtn" style="flex:1; background:#95a5a6; padding:10px;">Edit</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Environment detection (same logic as rac_in_season_dashboard.html) ---
+    const hostname = window.location.hostname;
+    const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.endsWith('.local');
+
+    let supabaseUrl, supabaseKey, edgeFunctionUrl;
+    if (isLocal) {
+        const localIP = hostname === 'localhost' ? '127.0.0.1' : hostname;
+        supabaseUrl = `http://${localIP}:54321`;
+        supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log('Running in LOCAL mode at ' + localIP);
+    } else {
+        supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+        supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
+        console.log('Running in PRODUCTION mode');
+    }
+
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    // Show environment badge
+    const badge = document.getElementById('envBadge');
+    badge.textContent = isLocal ? 'LOCAL' : 'PRODUCTION';
+    badge.classList.add(isLocal ? 'local' : 'prod');
+
+    // --- Beats: load from Supabase function, fall back to hardcoded ---
+    // public.get_private_beats_anon_data() → table(id int, beat text, river_order text)
+    const BEATS_FALLBACK = [
+        'Greencliffe', 'Abbey', 'Hollins Wood', 'Packhorse Bridge', 'Mill Weir',
+        'Duncombe Park', 'Helmsley Fields', 'Fairyland', 'Sewage Farm', 'The Cut',
+        'Upper Rye House', 'Lower Rye House', 'The Heronry', 'Upper Harome',
+        'Middle Harome', 'Lower Harome', 'Fishing Hut & Railway Bridge'
+    ];
+
+    function populateBeats(names) {
+        const select = document.getElementById('category');
+        names.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+    }
+
+    (async function loadBeats() {
+        const { data } = await supabaseClient.rpc('get_private_beats_anon_data');
+        if (data && data.length > 0) {
+            populateBeats(data.map(r => r.beat));
+        } else {
+            populateBeats(BEATS_FALLBACK);
+        }
+    })();
+
+    // Holds the club password for the duration of the page session only.
+    // Needed to re-validate server-side on insert. Cleared on page close/refresh.
+    let sessionPassword = '';
+
+    // --- Login ---
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+
+    function showLoginError(msg) {
+        loginError.textContent = msg;
+        loginError.style.display = 'block';
+    }
+
+    async function attemptLogin() {
+        const surname = document.getElementById('loginSurname').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        loginError.style.display = 'none';
+
+        if (!surname || !password) {
+            showLoginError('Please enter your surname and the club password.');
+            return;
+        }
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Checking...';
+
+        try {
+            // public.verify_club_password(entered_password text) → boolean
+            const { data: pwOk, error: pwErr } = await supabaseClient
+                .rpc('verify_club_password', { entered_password: password });
+
+            if (pwErr || !pwOk) {
+                showLoginError('Incorrect club password. Please try again.');
+                return;
+            }
+
+            // Placeholder: public.validate_member_surname(p_surname text) → boolean
+            const { data: memberOk, error: memberErr } = await supabaseClient
+                .rpc('validate_member_surname', { p_surname: surname });
+
+            if (memberErr || !memberOk) {
+                showLoginError('Member surname not recognised. Please check the spelling.');
+                return;
+            }
+
+            // Both passed — store password for server-side re-validation on insert
+            sessionPassword = password;
+
+            // Reveal data entry form
+            document.getElementById('loginCard').style.display = 'none';
+            const dataSection = document.getElementById('dataSection');
+            dataSection.style.display = 'flex';
+            document.getElementById('rodName').value = surname;
+
+        } catch (err) {
+            showLoginError('Connection error. Please try again.');
+            console.error(err);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Enter';
+        }
+    }
+
+    loginBtn.addEventListener('click', attemptLogin);
+
+    ['loginSurname', 'loginPassword'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') attemptLogin();
+        });
+    });
+
+    // --- Data entry form ---
+    const form = document.getElementById('dataForm');
+    const modal = document.getElementById('confirmModal');
+    const finalConfirmBtn = document.getElementById('finalConfirm');
+
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        const formData = new FormData(form);
+
+        const isDnf = form.dnf.checked;
+        document.getElementById('summaryContent').innerHTML = isDnf ? `
+            <strong>Member:</strong> ${formData.get('rodName')}<br>
+            <strong>Date:</strong> ${formData.get('date')}<br>
+            <strong>Beat:</strong> ${formData.get('category')}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
+        ` : `
+            <strong>Member:</strong> ${formData.get('rodName')}<br>
+            <strong>Date:</strong> ${formData.get('date')}<br>
+            <strong>Beat:</strong> ${formData.get('category')}<br>
+            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
+            <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
+            <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+        `;
+        modal.style.display = 'flex';
+    });
+
+    document.getElementById('cancelBtn').onclick = () => { modal.style.display = 'none'; };
+
+    finalConfirmBtn.onclick = async () => {
+        finalConfirmBtn.disabled = true;
+        finalConfirmBtn.textContent = 'Submitting...';
+
+        const formData = new FormData(form);
+
+        try {
+            // public.insert_catch_return re-validates password + surname server-side
+            const { error: insertError } = await supabaseClient
+                .rpc('insert_catch_return', {
+                    p_password:    sessionPassword,
+                    p_surname:     formData.get('rodName'),
+                    p_catch_date:  formData.get('date'),
+                    p_beat:        formData.get('category'),
+                    p_dnf:         form.dnf.checked,
+                    p_guest:       form.verified.checked,
+                    p_bt_released: Number(formData.get('v1')),
+                    p_grayling:    Number(formData.get('v2')),
+                    p_rainbow:     Number(formData.get('v3')),
+                    p_other:       Number(formData.get('v4')),
+                    p_bt_retained: Number(formData.get('v5')),
+                    p_comments:    form.comments.value.trim()
+                });
+
+            if (insertError) throw insertError;
+
+            alert('Success! Your catch return has been recorded.');
+            form.reset();
+            // Re-populate surname since form.reset() clears it
+            document.getElementById('rodName').value = document.getElementById('loginSurname').value.trim();
+            // Restore sections hidden by DNF (form.reset() unchecks the box but won't re-show them)
+            document.getElementById('catchSection').style.display = 'block';
+            document.getElementById('observationsSection').style.display = 'flex';
+            document.getElementById('dnfWrapper').style.backgroundColor = '';
+            document.getElementById('dnfWrapper').style.borderColor = '#e0e0e0';
+            modal.style.display = 'none';
+
+        } catch (err) {
+            console.error('Insert error:', err);
+            alert('Database error: ' + err.message);
+        } finally {
+            finalConfirmBtn.disabled = false;
+            finalConfirmBtn.textContent = 'Confirm';
+        }
+    };
+
+    // --- DNF toggle: collapse catch + observations sections ---
+    document.getElementById('dnf').addEventListener('change', function () {
+        const isDnf = this.checked;
+        const catchSection = document.getElementById('catchSection');
+        const observationsSection = document.getElementById('observationsSection');
+        const dnfWrapper = document.getElementById('dnfWrapper');
+
+        catchSection.style.display = isDnf ? 'none' : 'block';
+        observationsSection.style.display = isDnf ? 'none' : 'flex';
+        dnfWrapper.style.backgroundColor = isDnf ? '#fff3cd' : '';
+        dnfWrapper.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
+
+        if (isDnf) {
+            ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
+            form.verified.checked = false;
+            // comments intentionally not cleared — may be useful context for a DNF entry
+        }
+    });
+
+    // --- History button ---
+    document.getElementById('historyBtn').onclick = async () => {
+        const name = document.getElementById('rodName').value.trim();
+        const historyBtn = document.getElementById('historyBtn');
+
+        if (!name) {
+            alert('Please enter your Member Surname before requesting your data.');
+            document.getElementById('rodName').focus();
+            return;
+        }
+
+        historyBtn.disabled = true;
+        historyBtn.textContent = 'Sending Email...';
+
+        try {
+            const response = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify({ surname: name })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert('Success! Your catch history has been emailed to you.');
+            } else {
+                alert('Error: ' + (result.error || 'Failed to send email.'));
+            }
+
+        } catch (err) {
+            console.error('Edge function error:', err);
+            alert('Connection error: Could not reach the email service.');
+        } finally {
+            historyBtn.disabled = false;
+            historyBtn.textContent = 'Email My Returns YTD';
+        }
+    };
+</script>
+</body>
+</html>
