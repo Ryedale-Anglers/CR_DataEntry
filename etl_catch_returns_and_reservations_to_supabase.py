@@ -225,8 +225,8 @@ def insert_dnf_for_beat_mismatch(conn):
                 b.beat AS reserved_beat_cr_name
             FROM {schema}.reservations_confirmed_staging r
             -- Map the reservation's resource to the beats.beat name
-            INNER JOIN public.reservation_beats rb ON rb.beat = r.resource
-            INNER JOIN public.beats b ON b.id = rb.beat_id
+            INNER JOIN private.reservation_beats rb ON rb.beat = r.resource
+            INNER JOIN private.beats b ON b.id = rb.beat_id
             -- Find that member's non-guest catch return(s) for the same date
             INNER JOIN {schema}.catch_returns_staging_table cr
                 ON cr.rod_name = r.cr_name
@@ -322,15 +322,15 @@ def insert_synthetic_reservations(conn):
                 rb.beat    AS resource
             FROM {schema}.catch_returns_staging_table cr
             -- Map CR beat name to beat_id via shared lookup tables
-            INNER JOIN public.beats b ON b.beat = cr.beat
+            INNER JOIN private.beats b ON b.beat = cr.beat
             -- Get ALL reservation resources that share this beat_id
-            INNER JOIN public.reservation_beats rb ON rb.beat_id = b.id
+            INNER JOIN private.reservation_beats rb ON rb.beat_id = b.id
             -- Only where no reservation exists for this date/cr_name
             -- for ANY resource sharing the same beat_id
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM {schema}.reservations_confirmed_staging r
-                INNER JOIN public.reservation_beats rb2 ON rb2.beat = r.resource
+                INNER JOIN private.reservation_beats rb2 ON rb2.beat = r.resource
                 WHERE r.date    = cr.catch_date
                 AND   r.cr_name = cr.rod_name
                 AND   rb2.beat_id = b.id
