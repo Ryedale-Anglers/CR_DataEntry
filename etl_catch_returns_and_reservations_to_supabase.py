@@ -42,8 +42,8 @@ PAYLOAD = {
 
 # 1. Supabase Connection ---
 # --- CONFIGURATION FROM ENV ---
-SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
-#SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
+#SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
+SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
 
 if not SUPABASE_CONN_STRING:
     raise ValueError("Missing environment variable. Check your .env file.")
@@ -247,6 +247,17 @@ def insert_dnf_for_beat_mismatch(conn):
                 AND   existing_dnf.beat       = b.beat
                 AND   existing_dnf.dnf        = true
             )
+            -- Exclude if a real catch return already exists for the reserved beat:
+            -- member corrected their earlier wrong-beat submission, so no DNF needed
+            AND NOT EXISTS (
+                SELECT 1
+                FROM {schema}.catch_returns_staging_table correct_cr
+                WHERE correct_cr.rod_name   = r.cr_name
+                AND   correct_cr.catch_date = r.date
+                AND   correct_cr.beat       = b.beat
+                AND   correct_cr.dnf        = false
+                AND   correct_cr.guest      = false
+            )
         """)
 
         result = conn.execute(mismatch_sql)
@@ -375,6 +386,94 @@ def insert_synthetic_reservations(conn):
         print(f"❌ Synthetic Reservation Error: {e}")
         raise e
     
+def mark_wrong_beat_submissions_as_dnf(conn):
+    """
+    Handles the correction scenario: member submits a catch return for the
+    wrong beat, then immediately resubmits for their actual reserved beat.
+    insert_synthetic_reservations will have created a Synthetic for the wrong
+    beat. This function detects those wrong-beat records and marks them DNF,
+    so they are not counted as real catch data and don't trigger a false-positive
+    in insert_dnf_for_beat_mismatch.
+
+    Detection criteria (all must be true):
+      1. Non-guest, non-DNF catch return exists for Beat_X.
+      2. Beat_X has only a Synthetic reservation for that member+date (no real one).
+      3. The same member has a non-guest, non-DNF catch return for a different
+         beat on the same date that HAS a real (non-Synthetic) reservation.
+    """
+    try:
+        schema = "private"
+        sql = text(f"""
+            WITH wrong_beat_crs AS (
+                SELECT cr.id
+                FROM {schema}.catch_returns_staging_table cr
+                WHERE cr.dnf   = false
+                  AND cr.guest = false
+                -- Beat_X has a Synthetic reservation for this member+date
+                AND EXISTS (
+                    SELECT 1
+                    FROM {schema}.reservations_confirmed_staging r
+                    INNER JOIN private.reservation_beats rb ON rb.beat = r.resource
+                    INNER JOIN private.beats b ON b.id = rb.beat_id
+                    WHERE r.cr_name = cr.rod_name
+                      AND r.date    = cr.catch_date
+                      AND b.beat    = cr.beat
+                      AND r.name    = 'Synthetic'
+                )
+                -- No real reservation exists for Beat_X
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM {schema}.reservations_confirmed_staging r
+                    INNER JOIN private.reservation_beats rb ON rb.beat = r.resource
+                    INNER JOIN private.beats b ON b.id = rb.beat_id
+                    WHERE r.cr_name = cr.rod_name
+                      AND r.date    = cr.catch_date
+                      AND b.beat    = cr.beat
+                      AND r.name   != 'Synthetic'
+                )
+                -- Member also has a real catch return for a different beat
+                -- that has a real reservation on the same date
+                AND EXISTS (
+                    SELECT 1
+                    FROM {schema}.catch_returns_staging_table cr2
+                    WHERE cr2.rod_name   = cr.rod_name
+                      AND cr2.catch_date = cr.catch_date
+                      AND cr2.beat      != cr.beat
+                      AND cr2.dnf        = false
+                      AND cr2.guest      = false
+                      AND EXISTS (
+                          SELECT 1
+                          FROM {schema}.reservations_confirmed_staging r2
+                          INNER JOIN private.reservation_beats rb2 ON rb2.beat = r2.resource
+                          INNER JOIN private.beats b2 ON b2.id = rb2.beat_id
+                          WHERE r2.cr_name = cr2.rod_name
+                            AND r2.date    = cr2.catch_date
+                            AND b2.beat    = cr2.beat
+                            AND r2.name   != 'Synthetic'
+                      )
+                )
+            )
+            UPDATE {schema}.catch_returns_staging_table
+            SET dnf                  = true,
+                brown_trout_released = 0,
+                grayling             = 0,
+                rainbow_trout        = 0,
+                other_species        = 0,
+                brown_trout_retained = 0,
+                comments             = 'Auto-corrected: wrong beat submission'
+            WHERE id IN (SELECT id FROM wrong_beat_crs)
+        """)
+        result = conn.execute(sql)
+        count = result.rowcount
+        if count == 0:
+            print(f"✅ Wrong-beat correction check: No records to correct.")
+        else:
+            print(f"⚠️  Wrong-beat correction: Marked {count} record(s) as DNF.")
+
+    except Exception as e:
+        print(f"❌ Wrong-beat correction error: {e}")
+        raise e
+
 def deduplicate_catch_returns(conn):
     """
     Where a member has submitted more than one non-guest, non-DNF catch return
@@ -443,7 +542,9 @@ if __name__ == "__main__":
                 print(f"De-duplicating Catch Returns")
                 deduplicate_catch_returns(conn)
                 print(f"Starting - insert_synthetic_reservations")
-                insert_synthetic_reservations(conn)  
+                insert_synthetic_reservations(conn)
+                print(f"Starting - mark_wrong_beat_submissions_as_dnf")
+                mark_wrong_beat_submissions_as_dnf(conn)
                 print(f"Starting - insert_dnf_for_beat_mismatch")
                 insert_dnf_for_beat_mismatch(conn)
                 
