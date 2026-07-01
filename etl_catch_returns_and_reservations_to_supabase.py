@@ -101,6 +101,26 @@ def refresh_catch_returns_data(conn):
 
         print(f"Fetched {len(df_final)} records from Google Sheets.")
 
+        # Deduplicate non-guest records in memory before insert so the batch load
+        # respects the partial unique index (rod_name, catch_date, beat WHERE guest=false).
+        # Mirrors the deduplicate_catch_returns SQL step: keep latest by timestamp.
+        original_count = len(df_final)
+        df_final['_ts_sort'] = pd.to_datetime(df_final['timestamp'], errors='coerce')
+        guest_mask = df_final['guest'].fillna(False) == True
+        df_non_guest = (
+            df_final[~guest_mask]
+            .sort_values('_ts_sort', ascending=False)
+            .drop_duplicates(subset=['rod_name', 'catch_date', 'beat'], keep='first')
+        )
+        df_final = (
+            pd.concat([df_non_guest, df_final[guest_mask]])
+            .drop(columns=['_ts_sort'])
+            .reset_index(drop=True)
+        )
+        removed = original_count - len(df_final)
+        if removed > 0:
+            print(f"⚠️  Removed {removed} duplicate record(s) from Google Sheets data before insert.")
+
         print(f"Wiping old PRIVATE catch_returns_staging data...")
         conn.execute(text("TRUNCATE TABLE private.catch_returns_staging_table RESTART IDENTITY;"))
 
