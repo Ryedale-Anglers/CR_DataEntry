@@ -1,194 +1,176 @@
-//import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-//import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-// Replace the old URL or "std/server" imports with these:
-//import { serve } from "@std/http";
 import { createClient } from "@supabase/supabase-js";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Inside your Deno.serve try block
     const { surname, clubPassword } = await req.json();
 
-    // 1. Initialize admin client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 2. Call your existing RPC function
-    const { data: isValid, error: pwError } = await supabaseAdmin
-      .rpc('verify_club_password', { entered_password: clubPassword });
+    // Step 1: validate password + surname, get member email and canonical name
+    const { data: memberRows, error: memberError } = await supabaseAdmin
+      .rpc('get_member_info_for_email', {
+        p_surname:  surname,
+        p_password: clubPassword,
+      });
 
-    // 3. Handle Errors or invalid passwords
-    if (pwError) {
-      console.error("Database RPC Error:", pwError.message);
-      throw new Error("Password verification failed");
+    if (memberError) {
+      const msg = memberError.message ?? '';
+      if (msg.includes('Invalid club password')) {
+        return new Response(JSON.stringify({ error: 'Incorrect club password' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      throw new Error(msg);
     }
 
-    if (!isValid) {
-      return new Response(JSON.stringify({ error: "Incorrect Club Password" }), { 
-        status: 401, 
-        headers: corsHeaders 
+    if (!memberRows || memberRows.length === 0) {
+      return new Response(JSON.stringify({ error: 'Member surname not recognised' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // 4. Proceed to fetch member and send email...
-    // 2. If it passes, proceed to your member lookup...
-    const { data: member, error: _memberError } = await supabaseAdmin
-      .from('members')
-      .select('email_address, cr_name')
-      .ilike('cr_name', surname)
-      .maybeSingle();
-   
-    if (!member) {
-      return new Response(JSON.stringify({ error: `No member found` }), { status: 404, headers: corsHeaders });
-    }
+    const { email_address, cr_name } = memberRows[0];
 
-    const { data: catches, error: _catchError } = await supabaseAdmin
-      .from('view_members_reserv_and_cr_history')
-      .select('*')
-      .ilike('cr_name', surname)
-      .order('date', { ascending: false })
+    // Step 2: fetch season history (reservations + catch returns)
+    const { data: history, error: historyError } = await supabaseAdmin
+      .rpc('get_member_season_history', { p_surname: surname });
 
-    const tableRows = catches?.length
-  ? catches.map(row => {
-      const catchDue = row.brown_trout === null && row.grayling === null && row.comments === null;
-      if (catchDue) {
-        return `<tr>
-          <td style="white-space: nowrap;">${row.date}</td>
-          <td>${row.beat}</td>
-          <td colspan="3" style="color: red; font-style: italic;">Catch Return Due...</td>
-        </tr>`;
-      }
-      return `<tr>
-        <td style="white-space: nowrap;">${row.date}</td>
-        <td>${row.beat}</td>
-        <td>${row.brown_trout ?? ''}</td>
-        <td>${row.grayling ?? ''}</td>
-        <td>${row.comments ?? ''}</td>
+    if (historyError) throw new Error(historyError.message);
+
+    // --- Build email HTML ---
+
+    const thStyle = [
+      'border: 1px solid #999',
+      'padding: 6px 8px',
+      'background-color: #4a7c59',
+      'color: white',
+      'font-weight: bold',
+      'text-align: left',
+    ].join(';');
+
+    const tdStyle = [
+      'border: 1px solid #999',
+      'padding: 6px 8px',
+      'vertical-align: top',
+    ].join(';');
+
+    const tdCentreStyle = tdStyle + ';text-align:center';
+
+    const headerRow = `
+      <tr>
+        <th style="${thStyle};white-space:nowrap">Date</th>
+        <th style="${thStyle};min-width:140px">Beat</th>
+        <th style="${thStyle};width:60px;text-align:center">BT Released</th>
+        <th style="${thStyle};width:60px;text-align:center">Grayling</th>
+        <th style="${thStyle};min-width:160px">Comments</th>
       </tr>`;
-    }).join('')
-  : '<tr><td colspan="5">No records</td></tr>';
 
-const tableStyle = `
-  border-collapse: collapse;
-  font-size: 0.85em;
-  font-family: sans-serif;
-  width: 100%;
-`;
+    const tableRows = (history && history.length > 0)
+      ? history.map((row: {
+          res_date: string;
+          beat: string;
+          bt_released: number | null;
+          grayling: number | null;
+          comments: string | null;
+          dnf: boolean | null;
+          guest: boolean | null;
+        }) => {
+          const dateStr = row.res_date;
+          const beat = row.beat ?? '';
+          const guestLabel = row.guest ? ' <em style="color:#888;font-size:0.85em">(guest)</em>' : '';
 
-const thStyle = `
-  border: 1px solid #999;
-  padding: 6px 8px;
-  background-color: #4a7c59;
-  color: white;
-  font-weight: bold;
-  text-align: left;
-`;
+          if (row.dnf === true) {
+            return `<tr>
+              <td style="${tdStyle};white-space:nowrap">${dateStr}</td>
+              <td style="${tdStyle}">${beat}${guestLabel}</td>
+              <td colspan="3" style="${tdStyle};color:#888;font-style:italic">Did Not Fish</td>
+            </tr>`;
+          }
 
-const headerRow = `
-  <thead>
-    <tr>
-      <th style="${thStyle} white-space: nowrap;">Date</th>
-      <th style="${thStyle} min-width: 140px;">Name</th>
-      <th style="${thStyle} width: 40px; text-align: center;">Brown Trout</th>
-      <th style="${thStyle} width: 40px; text-align: center;">Grayling</th>
-      <th style="${thStyle} min-width: 160px;">Comments</th>
-    </tr>
-  </thead>
-`;
+          const noCatchReturn = row.bt_released === null && row.grayling === null && row.comments === null;
+          if (noCatchReturn) {
+            return `<tr>
+              <td style="${tdStyle};white-space:nowrap">${dateStr}</td>
+              <td style="${tdStyle}">${beat}${guestLabel}</td>
+              <td colspan="3" style="${tdStyle};color:red;font-style:italic">Catch Return Due...</td>
+            </tr>`;
+          }
 
-// Inject td styles via a <style> block to avoid repetition on every cell
-const styleBlock = `
-  <style>
-    .catches-table td {
-      border: 1px solid #999;
-      padding: 6px 8px;
-      vertical-align: top;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .catches-table td:nth-child(3),
-    .catches-table td:nth-child(4) {
-      text-align: center;
-      width: 40px;
-    }
-    .catches-table td:nth-child(5) {
-      min-width: 160px;
-      max-width: 300px;
-    }
-  </style>
-`;
+          return `<tr>
+            <td style="${tdStyle};white-space:nowrap">${dateStr}</td>
+            <td style="${tdStyle}">${beat}${guestLabel}</td>
+            <td style="${tdCentreStyle}">${row.bt_released ?? 0}</td>
+            <td style="${tdCentreStyle}">${row.grayling ?? 0}</td>
+            <td style="${tdStyle}">${row.comments ?? ''}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="5" style="${tdStyle}">No reservations found for this season.</td></tr>`;
 
-const htmlBody = `
-  <html>
-    <body>
-      ${styleBlock}
-      <h3>Reservations & Catch Returns for ${member.cr_name}</h3>
-      <table class="catches-table" style="${tableStyle}">
-        ${headerRow}
-        <tbody>
-          ${tableRows}
-        </tbody>
-      </table>
-    </body>
-  </html>
-`;
+    const htmlBody = `
+      <html>
+        <body style="font-family:sans-serif;font-size:0.9em">
+          <h3 style="color:#4a7c59">Ryedale Anglers Club</h3>
+          <h4>Reservations &amp; Catch Returns — ${cr_name}</h4>
+          <table style="border-collapse:collapse;width:100%;font-size:0.85em">
+            <thead>${headerRow}</thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+          <p style="color:#888;font-size:0.8em;margin-top:16px">
+            This email was generated on request. Catch returns highlighted in red are outstanding.
+          </p>
+        </body>
+      </html>`;
 
-    // 1. Log the raw member object again to be 100% sure
-    //console.log("[DEBUG] Raw Member Object:", JSON.stringify(member));
-
-    // --- THE FINAL (FOR REAL THIS TIME) PAYLOAD ---
-    const RESEND_API_URL = "https://api.resend.com/emails";
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-
+    // --- Send via Resend ---
+    // TODO: update 'from' to your verified sender once set up in Resend dashboard
+    //       e.g. "Ryedale Anglers <secretary@ryedaleanglers.co.uk>"
+    //       or   "Ryedale Anglers <yourname@gmail.com>"  (after Gmail address is verified in Resend)
     const emailPayload = {
-      from: "Ryedale Anglers <onboarding@resend.dev>",  // temp
-      //to: [member.email_address],
-      to: ["delivered@resend.dev"],                      // temp
-      subject: "Catch History",
+      from: "Ryedale Anglers <onboarding@resend.dev>",
+      // TODO: switch to email_address once 'from' sender is verified
+      to: ["delivered@resend.dev"],
+      // to: [email_address],
+      subject: `RAC Reservations & Catch Returns — ${cr_name}`,
       html: htmlBody,
     };
 
-    try {
-      const apiResponse = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify(emailPayload),
-      });
+    const apiResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")!}`,
+      },
+      body: JSON.stringify(emailPayload),
+    });
 
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        throw new Error(`Resend rejected: ${errorText}`);
-      }
-
-      return new Response(
-        JSON.stringify({ message: "Email sent via Resend" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-
-    } catch (apiErr) {
-      const msg = apiErr instanceof Error ? apiErr.message : "Unknown API Error";
-      throw new Error(`RESEND_API_FAILURE: ${msg}`);
+    if (!apiResponse.ok) {
+      const errorText = await apiResponse.text();
+      throw new Error(`Resend rejected: ${errorText}`);
     }
+
+    return new Response(
+      JSON.stringify({ message: `Email sent to ${email_address}` }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error("Function Error:", errMsg);
+    console.error("Function error:", errMsg);
     return new Response(JSON.stringify({ error: errMsg }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
-    })
+    });
   }
-})
+});
