@@ -193,7 +193,12 @@
         ]);
 
         if (beatsRes.error || historyRes.error) {
-            namesElement.innerHTML = "<div style='padding:10px'>Error.</div>";
+            const msg = [
+                beatsRes.error  ? `beats: ${beatsRes.error.message}`   : null,
+                historyRes.error ? `history: ${historyRes.error.message}` : null,
+            ].filter(Boolean).join(' | ');
+            console.error('Grid load failed:', msg);
+            namesElement.innerHTML = `<div style='padding:10px;color:red'>Error: ${msg}</div>`;
             return;
         }
 
