@@ -6,15 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            max-width: 600px; 
-            margin: 0 auto; 
-            padding: 10px; 
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 10px;
             color: #333;
             background-color: #f4f7f6;
-            /* Added for the expanding layout */
-            height: 100vh; 
+            height: 100vh;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
@@ -22,109 +21,106 @@
 
         .form-container {
             background: white;
-            padding: 15px; 
+            padding: 15px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;         /* New */
-            flex-direction: column; /* New */
-            flex-grow: 1;          /* New - ensures it fills the body height */
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
         }
 
-        h1 { 
-            color: #1a365d; 
-            border-bottom: 2px solid #1a365d; 
-            padding-bottom: 5px; 
-            margin: 0 0 10px 0; 
-            font-size: 1.2rem; 
+        h1 {
+            color: #1a365d;
+            border-bottom: 2px solid #1a365d;
+            padding-bottom: 5px;
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
         }
-        
-        h2 { 
-            color: #2c5282; 
-            margin: 15px 0 8px 0; 
-            font-size: 0.95rem; 
+
+        h2 {
+            color: #2c5282;
+            margin: 15px 0 8px 0;
+            font-size: 0.95rem;
             text-transform: uppercase;
         }
 
         .row {
             display: flex;
-            flex-wrap: nowrap; /* Change from 'wrap' to 'nowrap' to force the horizontal layout */
-            gap: 10px; 
-            margin-bottom: 10px; 
-        }
-        
-        .flex-item { 
-            flex: 1; 
-            min-width: 80px; /* Reduced from 140px */
+            flex-wrap: nowrap;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
-        label { 
-            display: block; 
-            font-weight: bold; 
-            margin-bottom: 3px; 
-            font-size: 0.8rem; 
+        .flex-item {
+            flex: 1;
+            min-width: 80px;
         }
 
-        /* Universal input styling */
-        input[type="text"], 
-        input[type="password"], 
-        input[type="date"], 
-        input[type="number"], 
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 3px;
+            font-size: 0.8rem;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="date"],
+        input[type="number"],
         select {
-            width: 100%; 
-            padding: 6px 8px; 
-            border: 1px solid #ccc; 
-            border-radius: 4px; 
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
             box-sizing: border-box;
-            font-size: 14px; 
-            height: 34px; /* Matches height for all standard inputs */
+            font-size: 14px;
+            height: 34px;
         }
 
-        /* The expanding Observations field */
         textarea {
             width: 100%;
-            flex-grow: 1; /* This tells the textarea to eat up all available space */
+            flex-grow: 1;
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 4px;
             box-sizing: border-box;
             font-size: 14px;
-            resize: none; /* Prevents manual resizing which can break mobile layouts */
+            resize: none;
             margin-bottom: 10px;
         }
 
         .numeric-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px; 
+            gap: 8px;
         }
 
-        /* Styling for the checkbox inside the grid */
         .grid-checkbox-wrapper {
             display: flex;
-            flex-direction: column;   /* Label on top, Box on bottom */
+            flex-direction: column;
             justify-content: flex-start;
-            align-items: flex-start;  /* Both aligned to the left */
+            align-items: flex-start;
             height: 100%;
         }
 
         .grid-checkbox-wrapper label {
             display: block;
             font-weight: bold;
-            margin-bottom: 5px;       /* Matches the spacing of the other labels */
+            margin-bottom: 5px;
             font-size: 0.8rem;
         }
 
         .grid-checkbox-wrapper input[type="checkbox"] {
             margin: 0;
-            width: 20px;              /* Slightly larger for easier tapping on mobile */
+            width: 20px;
             height: 20px;
             cursor: pointer;
         }
 
         button {
-            width: 100%; 
+            width: 100%;
             padding: 12px;
-            background-color: #004a99; 
+            background-color: #004a99;
             color: white;
             border: none;
             border-radius: 4px;
@@ -133,36 +129,70 @@
             cursor: pointer;
             margin-top: 5px;
         }
-        /* Keep buttons at the bottom */
+
         .button-row {
             display: flex;
             gap: 10px;
-            margin-top: auto; /* Pushes the button row to the very bottom of the flex form */
+            margin-top: auto;
         }
+
         #historyBtn {
-            font-size: 14px;       /* Makes text smaller to fit more words */
-            line-height: 1.2;     /* Keeps text from looking squashed */
-            padding: 10px 5px;    /* Slightly reduces height to balance the look */
-            white-space: normal;  /* Allows text to wrap to a second line if needed */
+            font-size: 14px;
+            line-height: 1.2;
+            padding: 10px 5px;
+            white-space: normal;
         }
+
         #dataForm {
             display: flex;
             flex-direction: column;
-            flex-grow: 1; /* Makes the form fill the container */
+            flex-grow: 1;
+        }
+
+        /* Login card extras */
+        .env-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .env-badge.local {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+
+        .env-badge.prod {
+            background-color: #d1e7dd;
+            color: #0a3622;
+            border: 1px solid #198754;
+        }
+
+        .login-group {
+            margin-bottom: 12px;
+        }
+
+        .login-error {
+            color: #c0392b;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: #fdf2f2;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            display: none;
         }
 
         @media screen and (max-width: 480px) {
             h1 { font-size: 1.1rem; }
             h2 { font-size: 0.85rem; }
-            
-            /* Keep the inputs and labels small to save space */
             label { font-size: 0.75rem; }
             input, select { font-size: 13px; }
-            
-            /* Ensure the numeric grid stays as a 3-column layout if possible, 
-            or 2-column if it gets too cramped */
-            .numeric-grid { 
-                grid-template-columns: repeat(3, 1fr); 
+            .numeric-grid {
+                grid-template-columns: repeat(3, 1fr);
                 gap: 5px;
             }
         }
@@ -170,15 +200,36 @@
 </head>
 <body>
 
+<!-- Login screen — shown until both surname and password are validated -->
+<div id="loginCard" class="form-container">
+    <h1>Ryedale Anglers Club</h1>
+    <span id="envBadge" class="env-badge"></span>
+    <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
+
+    <div class="login-group">
+        <label for="loginSurname">Member Surname</label>
+        <input type="text" id="loginSurname" placeholder="Surname" autocomplete="off">
+    </div>
+    <div class="login-group">
+        <label for="loginPassword">Club Password</label>
+        <input type="password" id="loginPassword" placeholder="Club password" autocomplete="off">
+    </div>
+
+    <div id="loginError" class="login-error"></div>
+    <button id="loginBtn" style="margin-top: 10px;">Enter</button>
+</div>
+
+<!-- Data entry form — revealed after successful login -->
+<div id="dataSection" style="display: none; flex-direction: column; flex-grow: 1;">
 <div class="form-container">
     <h1>Ryedale Anglers Club</h1>
     <form id="dataForm">
         <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
-            
+
         <div class="row">
             <div class="flex-item" style="flex: 1;">
-                <label for="clubPassword">Club Password</label>
-                <input type="password" id="clubPassword" name="clubPassword" placeholder="Required" required>
+                <label for="date">Catch Date</label>
+                <input type="date" id="date" name="date" required>
             </div>
             <div class="flex-item" style="flex: 2;">
                 <label for="rodName">Member Surname</label>
@@ -188,38 +239,26 @@
 
         <div class="row">
             <div class="flex-item" style="flex: 1;">
-                <label for="date">Catch Date</label>
-                <input type="date" id="date" name="date" required>
-            </div>
-            <div class="flex-item" style="flex: 2;">
                 <label for="category">Beat</label>
                 <select id="category" name="category" required>
                     <option value="">-- Select --</option>
-                    <option value="Greencliffe">Greencliffe</option>
-                    <option value="Abbey">Abbey</option>
-                    <option value="Hollins Wood">Hollins Wood</option>
-                    <option value="Packhorse Bridge">Packhorse Bridge</option>
-                    <option value="Mill Weir">Mill Weir</option>
-                    <option value="Duncombe Park">Duncombe Park</option>
-                    <option value="Helmsley Fields">Helmsley Fields</option>
-                    <option value="Fairyland">Fairyland</option>
-                    <option value="Sewage Farm">Sewage Farm</option>
-                    <option value="The Cut">The Cut</option>
-                    <option value="Upper Rye House">Upper Rye House</option>
-                    <option value="Lower Rye House">Lower Rye House</option>
-                    <option value="The Heronry">The Heronry</option>
-                    <option value="Upper Harome">Upper Harome</option>
-                    <option value="Middle Harome">Middle Harome</option>
-                    <option value="Lower Harome">Lower Harome</option>
-                    <option value="Fishing Hut & Railway Bridge">Fishing Hut & Railway Bridge</option>
                 </select>
             </div>
         </div>
 
+        <!-- DNF row: when checked, collapses catch and observations sections -->
+        <div style="margin-bottom: 10px;">
+            <div id="dnfWrapper" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:4px; border:1px solid #e0e0e0; cursor:pointer;" onclick="document.getElementById('dnf').click()">
+                <input type="checkbox" id="dnf" name="dnf" onclick="event.stopPropagation()" style="width:20px; height:20px; cursor:pointer; margin:0; flex-shrink:0;">
+                <label for="dnf" style="font-size:0.9rem; font-weight:bold; cursor:pointer; margin:0; user-select:none;">Did Not Fish</label>
+            </div>
+        </div>
+
+        <div id="catchSection">
         <h2>Your Catch Return</h2>
         <div class="numeric-grid">
             <div>
-                <label>BT C&R</label>
+                <label>BT C&amp;R</label>
                 <input type="number" name="v1" min="0" max="40" value="0">
             </div>
             <div>
@@ -243,8 +282,12 @@
                 <input type="checkbox" id="verified" name="verified">
             </div>
         </div>
+        </div><!-- end catchSection -->
+
+        <div id="observationsSection">
         <h2>Observations</h2>
         <textarea name="comments" placeholder="Conditions, flies, etc..."></textarea>
+        </div><!-- end observationsSection -->
 
         <div class="button-row">
             <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
@@ -252,7 +295,9 @@
         </div>
     </form>
 </div>
+</div>
 
+<!-- Confirmation modal -->
 <div id="confirmModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
     <div style="background:white; padding:20px; border-radius:8px; max-width:350px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
         <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;">Review Entry</h3>
@@ -264,124 +309,345 @@
     </div>
 </div>
 
+<!-- Generic choice modal: used for overwrite confirmation and outstanding-reservation resolution -->
+<div id="choiceModal" style="display:none; position:fixed; z-index:110; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+    <div style="background:white; padding:20px; border-radius:8px; max-width:380px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+        <h3 id="choiceTitle" style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;"></h3>
+        <div id="choiceBody" style="font-size:0.85rem; line-height:1.4; margin:10px 0;"></div>
+        <div id="choiceList" style="margin:10px 0; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+        <div id="choiceButtons" style="display:flex; flex-direction:column; gap:8px; margin-top:15px;"></div>
+    </div>
+</div>
+
 <script>
+    // --- Environment detection (same logic as rac_in_season_dashboard.html) ---
+    const hostname = window.location.hostname;
+    const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.endsWith('.local');
+
     let supabaseUrl, supabaseKey, edgeFunctionUrl;
+    if (isLocal) {
+        const localIP = hostname === 'localhost' ? '127.0.0.1' : hostname;
+        supabaseUrl = `http://${localIP}:54321`;
+        supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history_email`;
+        console.log('Running in LOCAL mode at ' + localIP);
+    } else {
+        supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+        supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history_email`;
+        console.log('Running in PRODUCTION mode');
+    }
 
-    async function validateClubPassword() {
-        const pwdInput = document.getElementById('clubPassword');
-        const password = pwdInput.value;
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-        if (!password) {
-            alert("Please enter the Club Password.");
-            pwdInput.focus();
-            return false;
-        }
+    // Show environment badge
+    const badge = document.getElementById('envBadge');
+    badge.textContent = isLocal ? 'LOCAL' : 'PRODUCTION';
+    badge.classList.add(isLocal ? 'local' : 'prod');
 
-        // Calling your existing Supabase RPC function
-        const { data: isValid, error } = await supabaseClient.rpc('verify_club_password', { 
-            entered_password: password 
+    // --- Beats: load from Supabase function, fall back to hardcoded ---
+    // public.get_private_beats_anon_data() → table(id int, beat text, river_order text)
+    const BEATS_FALLBACK = [
+        'Greencliffe', 'Abbey', 'Hollins Wood', 'Packhorse Bridge', 'Mill Weir',
+        'Duncombe Park', 'Helmsley Fields', 'Fairyland', 'Sewage Farm', 'The Cut',
+        'Upper Rye House', 'Lower Rye House', 'The Heronry', 'Upper Harome',
+        'Middle Harome', 'Lower Harome', 'Fishing Hut & Railway Bridge'
+    ];
+
+    function populateBeats(names) {
+        const select = document.getElementById('category');
+        names.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
         });
+    }
 
-        if (error) {
-            console.error("Auth error:", error);
-            alert("Error verifying password. Please try again.");
-            return false;
+    (async function loadBeats() {
+        const { data } = await supabaseClient.rpc('get_private_beats_anon_data');
+        if (data && data.length > 0) {
+            populateBeats(data.map(r => r.beat));
+        } else {
+            populateBeats(BEATS_FALLBACK);
+        }
+    })();
+
+    // Holds the club password for the duration of the page session only.
+    // Needed to re-validate server-side on insert. Cleared on page close/refresh.
+    let sessionPassword = '';
+
+    // --- Login ---
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+
+    function showLoginError(msg) {
+        loginError.textContent = msg;
+        loginError.style.display = 'block';
+    }
+
+    async function attemptLogin() {
+        const surname = document.getElementById('loginSurname').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        loginError.style.display = 'none';
+
+        if (!surname || !password) {
+            showLoginError('Please enter your surname and the club password.');
+            return;
         }
 
-        if (!isValid) {
-            alert("Incorrect Club Password.");
-            pwdInput.value = ""; // Clear incorrect password
-            pwdInput.focus();
-            return false;
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Checking...';
+
+        try {
+            // public.verify_club_password(entered_password text) → boolean
+            const { data: pwOk, error: pwErr } = await supabaseClient
+                .rpc('verify_club_password', { entered_password: password });
+
+            if (pwErr || !pwOk) {
+                showLoginError('Incorrect club password. Please try again.');
+                return;
+            }
+
+            // Placeholder: public.validate_member_surname(p_surname text) → boolean
+            const { data: memberOk, error: memberErr } = await supabaseClient
+                .rpc('validate_member_surname', { p_surname: surname });
+
+            if (memberErr || !memberOk) {
+                showLoginError('Member surname not recognised. Please check the spelling.');
+                return;
+            }
+
+            // Both passed — store password for server-side re-validation on insert
+            sessionPassword = password;
+
+            // Reveal data entry form
+            document.getElementById('loginCard').style.display = 'none';
+            const dataSection = document.getElementById('dataSection');
+            dataSection.style.display = 'flex';
+            document.getElementById('rodName').value = surname;
+
+        } catch (err) {
+            showLoginError('Connection error. Please try again.');
+            console.error(err);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Enter';
+        }
+    }
+
+    loginBtn.addEventListener('click', attemptLogin);
+
+    ['loginSurname', 'loginPassword'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') attemptLogin();
+        });
+    });
+
+    // --- Data entry form ---
+    const form = document.getElementById('dataForm');
+    const modal = document.getElementById('confirmModal');
+    const finalConfirmBtn = document.getElementById('finalConfirm');
+
+    // Holds the outcome of the outstanding-reservations resolution, read by
+    // finalConfirmBtn.onclick when it actually submits.
+    let pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
+
+    // --- Generic choice-modal helper: shows a title/body/options, resolves
+    // with whichever button or list item the member picked. ---
+    const choiceModal = document.getElementById('choiceModal');
+    const choiceTitle = document.getElementById('choiceTitle');
+    const choiceBody = document.getElementById('choiceBody');
+    const choiceList = document.getElementById('choiceList');
+    const choiceButtons = document.getElementById('choiceButtons');
+
+    function showChoice({ title, bodyHTML, listItems, buttons }) {
+        return new Promise(resolve => {
+            choiceTitle.textContent = title;
+            choiceBody.innerHTML = bodyHTML || '';
+            choiceList.innerHTML = '';
+            choiceButtons.innerHTML = '';
+
+            (listItems || []).forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = item.label;
+                btn.style.cssText = 'background:#2c5282; margin-top:0;';
+                btn.onclick = () => { choiceModal.style.display = 'none'; resolve(item.value); };
+                choiceList.appendChild(btn);
+            });
+
+            buttons.forEach(b => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = b.label;
+                btn.style.cssText = b.style || '';
+                btn.onclick = () => { choiceModal.style.display = 'none'; resolve(b.value); };
+                choiceButtons.appendChild(btn);
+            });
+
+            choiceModal.style.display = 'flex';
+        });
+    }
+
+    function showReviewModal() {
+        const formData = new FormData(form);
+        const isDnf = form.dnf.checked;
+
+        document.getElementById('summaryContent').innerHTML = isDnf ? `
+            <strong>Member:</strong> ${formData.get('rodName')}<br>
+            <strong>Date:</strong> ${formData.get('date')}<br>
+            <strong>Beat:</strong> ${formData.get('category')}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
+        ` : `
+            <strong>Member:</strong> ${formData.get('rodName')}<br>
+            <strong>Date:</strong> ${formData.get('date')}<br>
+            <strong>Beat:</strong> ${formData.get('category')}<br>
+            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
+            <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
+            <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+        `;
+        modal.style.display = 'flex';
+    }
+
+    // Resolves duplicate-record and missing-reservation ambiguity with the
+    // member before the review modal is shown. Non-guest, non-DNF submissions
+    // only - guests and self-declared DNFs skip reservation matching entirely.
+    async function resolveBeforeReview() {
+        const surname = form.rodName.value.trim();
+        const isDnf = form.dnf.checked;
+        const isGuest = form.verified.checked;
+        const catchDate = form.date.value;
+        const beat = form.category.value;
+
+        pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
+
+        // 1. Duplicate check
+        if (!isGuest) {
+            const { data: existingRows, error: existErr } = await supabaseClient
+                .rpc('check_existing_catch_return', {
+                    p_password: sessionPassword,
+                    p_surname: surname,
+                    p_catch_date: catchDate,
+                    p_beat: beat,
+                    p_guest: isGuest
+                });
+            if (existErr) throw existErr;
+
+            if (existingRows && existingRows.length > 0) {
+                const existing = existingRows[0];
+                const overwrite = await showChoice({
+                    title: 'Existing Record Found',
+                    bodyHTML: `
+                        <p>You already have a record for <strong>${beat}</strong> on <strong>${catchDate}</strong>:</p>
+                        <p style="color:#666;">
+                            ${existing.dnf ? 'Did Not Fish' :
+                                `BT: ${existing.brown_trout_released}, Grayling: ${existing.grayling}, Rainbow: ${existing.rainbow_trout}, Other: ${existing.other_species}, BT Retained: ${existing.brown_trout_retained}`}
+                            ${existing.comments ? '<br>Comments: ' + existing.comments : ''}
+                        </p>
+                        <p>Submitting now will replace it with your new entry.</p>
+                    `,
+                    buttons: [
+                        { label: 'Overwrite', value: true, style: 'background:#c0392b;' },
+                        { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
+                    ]
+                });
+                if (!overwrite) return false;
+            }
+        }
+
+        // 2. Reservation match / outstanding-reservations resolution
+        if (!isGuest && !isDnf) {
+            const { data: outstanding, error: outErr } = await supabaseClient
+                .rpc('get_outstanding_reservations', {
+                    p_password: sessionPassword,
+                    p_surname: surname
+                });
+            if (outErr) throw outErr;
+
+            const list = outstanding || [];
+            const exactMatch = list.find(r => r.reservation_date === catchDate && r.beat === beat);
+
+            if (!exactMatch) {
+                if (list.length === 0) {
+                    const confirmed = await showChoice({
+                        title: 'No Reservation Found',
+                        bodyHTML: `<p>We couldn't find any reservation for you this season, including for <strong>${beat}</strong> on <strong>${catchDate}</strong>.</p><p>Confirm you fished without a booking — this will be recorded as such.</p>`,
+                        buttons: [
+                            { label: 'Confirm — I had no reservation', value: true, style: 'background:#2c5282;' },
+                            { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
+                        ]
+                    });
+                    if (!confirmed) return false;
+                    pendingResolution.createSynthetic = true;
+                } else {
+                    const choice = await showChoice({
+                        title: 'No Matching Reservation',
+                        bodyHTML: `<p>We couldn't find a reservation for <strong>${beat}</strong> on <strong>${catchDate}</strong>. Is one of these the reservation you actually used?</p>`,
+                        listItems: list.map(r => ({
+                            label: `${r.beat} — ${r.reservation_date}`,
+                            value: { action: 'select', reservation: r }
+                        })),
+                        buttons: [
+                            { label: 'None of these — I had no reservation', value: { action: 'none' }, style: 'background:#2c5282;' }
+                        ]
+                    });
+
+                    if (choice.action === 'select') {
+                        const r = choice.reservation;
+                        const mistyped = await showChoice({
+                            title: 'Did You Mean This?',
+                            bodyHTML: `<p>Did you mean to enter <strong>${r.beat}</strong> on <strong>${r.reservation_date}</strong> instead of what you typed?</p>`,
+                            buttons: [
+                                { label: 'Yes, correct my entry', value: true, style: 'background:#27ae60;' },
+                                { label: "No, I fished something else", value: false, style: 'background:#2c5282;' }
+                            ]
+                        });
+
+                        if (mistyped) {
+                            // Correct the fields and re-resolve from the top, since the
+                            // corrected beat/date may itself have a duplicate to check.
+                            form.date.value = r.reservation_date;
+                            form.category.value = r.beat;
+                            return resolveBeforeReview();
+                        } else {
+                            pendingResolution.createSynthetic = true;
+                            pendingResolution.dnfOtherBeat = r.beat;
+                            pendingResolution.dnfOtherDate = r.reservation_date;
+                        }
+                    } else {
+                        pendingResolution.createSynthetic = true;
+                    }
+                }
+            }
         }
 
         return true;
     }
 
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-        supabaseUrl = 'http://127.0.0.1:54321';
-        supabaseKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-        // Your local Edge Function endpoint
-        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
-        console.log("Running in LOCAL mode");
-    } else {
-        supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
-        supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
-        // Your production Edge Function endpoint
-        edgeFunctionUrl = `${supabaseUrl}/functions/v1/send_Res_CR_history-email`;
-        console.log("Running in PRODUCTION mode");
-    }    
-
-    // const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-    // Use the library's global object to create your specific instance
-    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-
-    //const supabaseUrl = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
-    //const supabaseKey = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
-
-    //const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-    //const scriptURL = 'https://script.google.com/macros/s/AKfycbyFBua9t6iOimoZ1Th7gkcbb0orkXMVrSaNXrs0BCegDh0d2fwUh4nOrXDrXB3ey0Q/exec';
-    const form = document.getElementById('dataForm');
-    const modal = document.getElementById('confirmModal');
-    const summary = document.getElementById('summaryContent');
-    const finalConfirmBtn = document.getElementById('finalConfirm');
-
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', async e => {
         e.preventDefault();
-        
         const submitBtn = document.getElementById('submitBtn');
         const originalText = submitBtn.innerText;
-        
-        // 1. UI Feedback: Disable button while checking
         submitBtn.disabled = true;
-        submitBtn.innerText = "Verifying Identity...";
+        submitBtn.innerText = 'Checking...';
 
         try {
-            // 2. Verify Club Password
-            const authenticated = await validateClubPassword();
-            if (!authenticated) {
-                submitBtn.disabled = false;
-                submitBtn.innerText = originalText;
-                return;
-            }
-
-            // 3. Verify Member Surname
-            const typedSurname = document.getElementById('rodName').value.trim();
-            const { data: memberData, error: memberError } = await supabaseClient
-                .from('members')
-                .select('cr_name')
-                .ilike('cr_name', typedSurname)
-                .single();
-
-            if (!memberData) {
-                alert("Surname '" + typedSurname + "' not found in club records. Please check spelling.");
-                document.getElementById('rodName').focus();
-                submitBtn.disabled = false;
-                submitBtn.innerText = originalText;
-                return;
-            }
-
-            // 4. If both pass, build and show the Modal
-            const formData = new FormData(form);
-            let summaryHTML = `
-                <strong>Member:</strong> ${memberData.cr_name}<br>
-                <strong>Date:</strong> ${formData.get('date')}<br>
-                <strong>Beat:</strong> ${formData.get('category')}<br>
-                <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
-                <hr style="border:0; border-top:1px dashed #ccc;">
-                <strong>BT (C&R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
-                <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
-                <strong>BT Retained:</strong> ${formData.get('v5')}<br>
-                <hr style="border:0; border-top:1px dashed #ccc;">
-                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
-            `;
-            
-            summary.innerHTML = summaryHTML;
-            modal.style.display = 'flex';
-
+            const proceed = await resolveBeforeReview();
+            if (proceed) showReviewModal();
         } catch (err) {
-            console.error("Verification error:", err);
-            alert("Connection Error: Could not verify details.");
+            console.error('Resolution error:', err);
+            alert('Error: ' + err.message);
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerText = originalText;
@@ -390,92 +656,115 @@
 
     document.getElementById('cancelBtn').onclick = () => { modal.style.display = 'none'; };
 
-finalConfirmBtn.onclick = async () => {
-    finalConfirmBtn.disabled = true;
-    finalConfirmBtn.innerText = "Submitting...";
+    finalConfirmBtn.onclick = async () => {
+        finalConfirmBtn.disabled = true;
+        finalConfirmBtn.textContent = 'Submitting...';
 
-    const formData = new FormData(form);
-    
-    try {
-        const { error: insertError } = await supabaseClient
-            .from('catch_returns_staging_table')
-            .insert([{
-                rod_name: formData.get('rodName'),
-                catch_date: formData.get('date'),
-                beat: formData.get('category'),
-                guest: form.verified.checked,
-                brown_trout_released: Number(formData.get('v1')),
-                grayling: Number(formData.get('v2')),
-                rainbow_trout: Number(formData.get('v3')),
-                other_species: Number(formData.get('v4')),
-                brown_trout_retained: Number(formData.get('v5')),
-                comments: formData.get('comments')
-            }]);
+        const formData = new FormData(form);
 
-        if (insertError) throw insertError;
+        try {
+            // public.insert_catch_return re-validates password + surname server-side
+            const { error: insertError } = await supabaseClient
+                .rpc('insert_catch_return', {
+                    p_password:    sessionPassword,
+                    p_surname:     formData.get('rodName'),
+                    p_catch_date:  formData.get('date'),
+                    p_beat:        formData.get('category'),
+                    p_dnf:         form.dnf.checked,
+                    p_guest:       form.verified.checked,
+                    p_bt_released: Number(formData.get('v1')),
+                    p_grayling:    Number(formData.get('v2')),
+                    p_rainbow:     Number(formData.get('v3')),
+                    p_other:       Number(formData.get('v4')),
+                    p_bt_retained: Number(formData.get('v5')),
+                    p_comments:    form.comments.value.trim(),
+                    p_create_synthetic: pendingResolution.createSynthetic,
+                    p_dnf_other_beat:   pendingResolution.dnfOtherBeat,
+                    p_dnf_other_date:   pendingResolution.dnfOtherDate
+                });
 
-        alert("Success! Your catch return has been recorded.");
-        form.reset(); 
-        modal.style.display = 'none';
+            if (insertError) throw insertError;
 
-    } catch (err) {
-        console.error('Insert Error:', err);
-        alert("Database Error: " + err.message);
-    } finally {
-        finalConfirmBtn.disabled = false;
-        finalConfirmBtn.innerText = "Confirm";
-    }
-};
-const historyBtn = document.getElementById('historyBtn');
+            alert('Success! Your catch return has been recorded.');
+            form.reset();
+            // Re-populate surname since form.reset() clears it
+            document.getElementById('rodName').value = document.getElementById('loginSurname').value.trim();
+            // Restore sections hidden by DNF (form.reset() unchecks the box but won't re-show them)
+            document.getElementById('catchSection').style.display = 'block';
+            document.getElementById('observationsSection').style.display = 'flex';
+            document.getElementById('dnfWrapper').style.backgroundColor = '';
+            document.getElementById('dnfWrapper').style.borderColor = '#e0e0e0';
+            pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
+            modal.style.display = 'none';
 
-historyBtn.onclick = async () => {
-    // 1. Check Password First
-    const authenticated = await validateClubPassword();
-    if (!authenticated) return;
+        } catch (err) {
+            console.error('Insert error:', err);
+            alert('Database error: ' + err.message);
+        } finally {
+            finalConfirmBtn.disabled = false;
+            finalConfirmBtn.textContent = 'Confirm';
+        }
+    };
 
-    const nameInput = document.getElementById('rodName');
-    const name = nameInput.value.trim();
+    // --- DNF toggle: collapse catch + observations sections ---
+    document.getElementById('dnf').addEventListener('change', function () {
+        const isDnf = this.checked;
+        const catchSection = document.getElementById('catchSection');
+        const observationsSection = document.getElementById('observationsSection');
+        const dnfWrapper = document.getElementById('dnfWrapper');
 
-    if (!name) {
-        alert("Please enter your Member Surname before requesting your data.");
-        nameInput.focus();
-        nameInput.style.borderColor = "red";
-        return;
-    }
+        catchSection.style.display = isDnf ? 'none' : 'block';
+        observationsSection.style.display = isDnf ? 'none' : 'flex';
+        dnfWrapper.style.backgroundColor = isDnf ? '#fff3cd' : '';
+        dnfWrapper.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
 
-    nameInput.style.borderColor = "#ccc";
-    historyBtn.disabled = true;
-    historyBtn.innerText = "Sending Email...";
+        if (isDnf) {
+            ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
+            form.verified.checked = false;
+            // comments intentionally not cleared — may be useful context for a DNF entry
+        }
+    });
 
-    try {
-        const response = await fetch(edgeFunctionUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Use the publishable key for authorization if required by your function settings
-                'Authorization': `Bearer ${supabaseKey}` 
-            },
-            body: JSON.stringify({ surname: name })
-        });
+    // --- History button ---
+    document.getElementById('historyBtn').onclick = async () => {
+        const name = document.getElementById('rodName').value.trim();
+        const historyBtn = document.getElementById('historyBtn');
 
-        const result = await response.json();
-
-        if (response.ok) {
-            alert("Success! Your catch history has been emailed to you.");
-        } else {
-            // Catches the "Member not found" or "SMTP Error" from your function
-            alert("Error: " + (result.error || "Failed to send email."));
+        if (!name) {
+            alert('Please enter your Member Surname before requesting your data.');
+            document.getElementById('rodName').focus();
+            return;
         }
 
-    } catch (error) {
-        console.error('Edge Function Error:', error);
-        alert("Connection Error: Could not reach the email service.");
-    } finally {
-        historyBtn.disabled = false;
-        historyBtn.innerText = "Email Me My Returns YTD";
-    }
-};
+        historyBtn.disabled = true;
+        historyBtn.textContent = 'Sending Email...';
 
+        try {
+            const response = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify({ surname: name })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert('Success! Your catch history has been emailed to you.');
+            } else {
+                alert('Error: ' + (result.error || 'Failed to send email.'));
+            }
+
+        } catch (err) {
+            console.error('Edge function error:', err);
+            alert('Connection error: Could not reach the email service.');
+        } finally {
+            historyBtn.disabled = false;
+            historyBtn.textContent = 'Email My Returns YTD';
+        }
+    };
 </script>
 </body>
 </html>
