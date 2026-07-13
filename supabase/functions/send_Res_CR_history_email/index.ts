@@ -134,14 +134,9 @@ Deno.serve(async (req) => {
       </html>`;
 
     // --- Send via Resend ---
-    // TODO: update 'from' to your verified sender once set up in Resend dashboard
-    //       e.g. "Ryedale Anglers <secretary@ryedaleanglers.co.uk>"
-    //       or   "Ryedale Anglers <yourname@gmail.com>"  (after Gmail address is verified in Resend)
     const emailPayload = {
-      from: "Ryedale Anglers <onboarding@resend.dev>",
-      // TODO: switch to email_address once 'from' sender is verified
-      to: ["delivered@resend.dev"],
-      // to: [email_address],
+      from: "Ryedale Anglers <reservations_and_catch_returns@ryedaleanglers.org.uk>",
+      to: [email_address],
       subject: `RAC Reservations & Catch Returns — ${cr_name}`,
       html: htmlBody,
     };
