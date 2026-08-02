@@ -370,7 +370,7 @@
         <button type="button" id="divertBtn" class="secondary-btn" disabled style="flex:1;">Fished a Different Beat</button>
     </div>
 
-    <button type="button" id="noReservationBtn" style="margin-top: 15px;">No Valid Reservation Showing</button>
+    <button type="button" id="noReservationBtn" style="margin-top: 15px;">Enter Catch Return for Reservation Not Listed</button>
     <button type="button" id="historyBtn" class="secondary-btn" style="margin-top: 8px;">Email My Returns YTD</button>
 </div>
 </div>
@@ -637,6 +637,17 @@
     // one is picked, read by the two shared action buttons below the list.
     let selectedListReservation = null;
 
+    // Reflects what's actually available for this reservation, since
+    // "Enter Catch Return" undersells it once there's a choice to make
+    // (edit your own vs. add/edit a guest's) - matches the options
+    // resolveWhichCatchReturn() will actually present.
+    function enterCrButtonLabel(r) {
+        if (!r.cr_exists && !r.guest_cr_count) return 'Enter Catch Return';
+        if (r.cr_exists && !r.guest_cr_count) return 'Edit Your / Add Guest Catch Return';
+        if (!r.cr_exists && r.guest_cr_count) return 'Enter Your / Edit Guest Catch Return';
+        return 'Edit Catch Returns';
+    }
+
     function renderReservationList() {
         const container = document.getElementById('reservationList');
         const enterCrBtn = document.getElementById('enterCrBtn');
@@ -685,7 +696,7 @@
                 selectedListReservation = r;
                 enterCrBtn.disabled = false;
                 divertBtn.disabled = false;
-                enterCrBtn.textContent = r.cr_exists ? 'Edit Catch Return' : 'Enter Catch Return';
+                enterCrBtn.textContent = enterCrButtonLabel(r);
             });
             container.appendChild(row);
         });
@@ -742,11 +753,13 @@
             : `submitted ${formatSubmittedAt(submittedAt)} — BT: ${record.brown_trout_released}, Grayling: ${record.grayling}, Rainbow: ${record.rainbow_trout}, Other: ${record.other_species}, BT Retained: ${record.brown_trout_retained}`;
     }
 
-    // Ambiguity only exists once a guest catch has been logged against this
-    // reservation - only then is there more than one possible record to
-    // land on, so only then do we ask up front which one. With no guests,
-    // there's nothing to choose between - go straight to the member's own
-    // record (or a blank form) exactly as before.
+    // Called whenever the member's own record already exists and/or any
+    // guest catches are logged - i.e. whenever there's at least one existing
+    // record, since "add a catch return for my guest" needs to be an
+    // explicit, always-available choice even the very first time (not just
+    // once a guest catch already exists - the member has to be able to
+    // start one). Only a genuinely brand-new reservation with nothing
+    // submitted at all skips this and goes straight to a blank form.
     async function resolveWhichCatchReturn(reservation) {
         const { data: guestCatches, error: guestErr } = await supabaseClient
             .rpc('get_guest_catch_returns_for_reservation', {
@@ -783,7 +796,9 @@
 
         const choice = await showChoice({
             title: 'Which Catch Return?',
-            bodyHTML: `<p>This reservation has more than one catch return logged. Choose which to edit, or add a new guest catch.</p>`,
+            bodyHTML: guestCatches.length > 0
+                ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit, or add another.</p>`
+                : `<p>Choose which catch return to edit, or add one for a guest.</p>`,
             listItems,
             buttons: [{ label: 'Cancel', value: false, style: 'background:#95a5a6;' }]
         });
@@ -794,7 +809,7 @@
 
     async function enterMode(mode, reservation) {
         let resolved = null;
-        if (mode === 'a' && reservation.guest_cr_count > 0) {
+        if (mode === 'a' && (reservation.cr_exists || reservation.guest_cr_count > 0)) {
             resolved = await resolveWhichCatchReturn(reservation);
             if (!resolved) return; // cancelled - stay on the reservation list, untouched
         }
@@ -869,23 +884,12 @@
                 form.dnf.dispatchEvent(new Event('change'));
                 form.verified.checked = isGuestChoice;
             } else {
-                // No guests logged against this reservation - nothing to
-                // disambiguate, go straight to the member's own existing
-                // record (may need correcting, e.g. DNF marked incorrectly)
-                // or a blank form if they haven't submitted one yet.
-                if (reservation.cr_exists) {
-                    const { data: existingRows, error } = await supabaseClient
-                        .rpc('check_existing_catch_return', {
-                            p_password: sessionPassword,
-                            p_surname: loggedInSurname,
-                            p_catch_date: reservation.reservation_date,
-                            p_beat: reservation.beat,
-                            p_guest: false
-                        });
-                    if (!error && existingRows && existingRows.length > 0) {
-                        prefillCatchFields(existingRows[0]);
-                    }
-                }
+                // resolved is only null here when neither the member's own
+                // record nor any guest catch exists yet - a genuinely fresh
+                // reservation with nothing submitted at all, so there's
+                // nothing to pre-fill or disambiguate. Blank form, checkbox
+                // interactive (deciding "mine vs a guest's" for this first
+                // entry is what it's for).
                 form.dnf.dispatchEvent(new Event('change'));
             }
 
@@ -995,51 +999,14 @@
         });
     }
 
-    // Only mode 'a' can hit an existing record (modes 'b'/'c' always create a
-    // fresh Synthetic reservation, so there's nothing to have pre-existed
-    // for that new beat in the ordinary case). Guest entries never overwrite
-    // - multiple guest catches are allowed per beat/date. When the
-    // reservation has guest catches logged, resolveWhichCatchReturn() already
-    // made an explicit, informed choice of which record this is up front, so
-    // this second overwrite confirmation would just be a redundant repeat of
-    // the same information for that case - only needed for the simple case
-    // (no guests, editing the member's own record with no prior disambiguation
-    // step).
+    // resolveWhichCatchReturn() now runs for every mode 'a' entry where any
+    // record already exists (the member's own and/or any guest catches) and
+    // makes an explicit, informed choice of which one this is before the
+    // form ever appears - so there's no remaining case where a submission
+    // could silently overwrite a record the member didn't already know
+    // about and choose. Kept as a hook (rather than inlining `true` at the
+    // call site) in case a future submit-time check is needed.
     async function handlePreSubmitChecks() {
-        if (currentMode !== 'a' || form.verified.checked || !currentReservation.cr_exists || currentReservation.guest_cr_count > 0) {
-            return true;
-        }
-
-        const { data: existingRows, error } = await supabaseClient
-            .rpc('check_existing_catch_return', {
-                p_password: sessionPassword,
-                p_surname: loggedInSurname,
-                p_catch_date: currentReservation.reservation_date,
-                p_beat: currentReservation.beat,
-                p_guest: false
-            });
-        if (error) throw error;
-
-        if (existingRows && existingRows.length > 0) {
-            const existing = existingRows[0];
-            const overwrite = await showChoice({
-                title: 'Existing Record Found',
-                bodyHTML: `
-                    <p>You already have a record for <strong>${currentReservation.beat}</strong> on <strong>${currentReservation.reservation_date}</strong>, submitted <strong>${formatSubmittedAt(existing.submitted_at)}</strong>:</p>
-                    <p style="color:#666;">
-                        ${existing.dnf ? 'Did Not Fish' :
-                            `BT: ${existing.brown_trout_released}, Grayling: ${existing.grayling}, Rainbow: ${existing.rainbow_trout}, Other: ${existing.other_species}, BT Retained: ${existing.brown_trout_retained}`}
-                        ${existing.comments ? '<br>Comments: ' + existing.comments : ''}
-                    </p>
-                    <p>Submitting now will replace it with your new entry.</p>
-                `,
-                buttons: [
-                    { label: 'Overwrite', value: true, style: 'background:#c0392b;' },
-                    { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
-                ]
-            });
-            if (!overwrite) return false;
-        }
         return true;
     }
 
