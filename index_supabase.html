@@ -77,6 +77,11 @@
             height: 34px;
         }
 
+        input:disabled, select:disabled {
+            background-color: #eee;
+            color: #666;
+        }
+
         textarea {
             width: 100%;
             flex-grow: 1;
@@ -130,6 +135,36 @@
             margin-top: 5px;
         }
 
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .choice-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: normal;
+        }
+
+        .choice-option input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .choice-option:has(input:checked) {
+            border-color: #2c5282;
+            background: #eef3f8;
+        }
+
         .button-row {
             display: flex;
             gap: 10px;
@@ -147,6 +182,15 @@
             display: flex;
             flex-direction: column;
             flex-grow: 1;
+        }
+
+        /* JS toggles #observationsSection between display:none and display:flex
+           (DNF toggle) but never sets flex-direction, so it was falling back to
+           the flex default of row - heading and textarea side by side instead
+           of stacked. Setting it here means it applies regardless of which JS
+           call site last touched the display property. */
+        #observationsSection {
+            flex-direction: column;
         }
 
         /* Login card extras */
@@ -186,6 +230,97 @@
             display: none;
         }
 
+        /* Reservation list - radio rows (reuses .choice-option's look), plus
+           two shared action buttons below that act on whichever row is
+           selected, rather than two buttons per row. */
+        .reservation-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+
+        .reservation-row input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .reservation-row:has(input:checked) {
+            border-color: #2c5282;
+            background: #eef3f8;
+        }
+
+        .reservation-row-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-grow: 1;
+            gap: 8px;
+        }
+
+        .reservation-status {
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .reservation-status.awaiting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+
+        .reservation-status.logged {
+            background-color: #d1e7dd;
+            color: #0a3622;
+            border: 1px solid #198754;
+        }
+
+        .reservation-status.dnf {
+            background-color: #fdf2f2;
+            color: #c0392b;
+            border: 1px solid #f5c6cb;
+        }
+
+        .reservation-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .secondary-btn {
+            background-color: #95a5a6 !important;
+        }
+
+        .link-btn {
+            background: none !important;
+            color: #2c5282 !important;
+            text-decoration: underline;
+            font-weight: normal !important;
+            padding: 4px !important;
+            width: auto !important;
+            margin: 0 0 10px 0 !important;
+            align-self: flex-start;
+        }
+
+        .divert-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
         @media screen and (max-width: 480px) {
             h1 { font-size: 1.1rem; }
             h2 { font-size: 0.85rem; }
@@ -219,27 +354,49 @@
     <button id="loginBtn" style="margin-top: 10px;">Enter</button>
 </div>
 
-<!-- Data entry form — revealed after successful login -->
+<!-- Reservation list — shown after login. Member picks a reservation first;
+     beat/date for the catch return come from that selection, not free text. -->
+<div id="reservationListSection" style="display: none; flex-direction: column; flex-grow: 1;">
+<div class="form-container">
+    <h1>Ryedale Anglers Club</h1>
+    <span id="envBadgeList" class="env-badge"></span>
+    <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Your Reservations</h2>
+
+    <div id="reservationList" style="flex-grow: 1; overflow-y: auto;"></div>
+    <button type="button" id="showMoreBtn" class="secondary-btn" style="display:none;">Show More</button>
+
+    <div class="reservation-actions">
+        <button type="button" id="enterCrBtn" disabled style="flex:2;">Enter Catch Return</button>
+        <button type="button" id="divertBtn" class="secondary-btn" disabled style="flex:1;">Fished a Different Beat</button>
+    </div>
+
+    <button type="button" id="noReservationBtn" style="margin-top: 15px;">No Valid Reservation Showing</button>
+    <button type="button" id="historyBtn" class="secondary-btn" style="margin-top: 8px;">Email My Returns YTD</button>
+</div>
+</div>
+
+<!-- Catch return entry form — reached by selecting a reservation (or "No
+     Valid Reservation Showing") from the list above. -->
 <div id="dataSection" style="display: none; flex-direction: column; flex-grow: 1;">
 <div class="form-container">
     <h1>Ryedale Anglers Club</h1>
+    <span id="envBadgeData" class="env-badge"></span>
+    <button type="button" id="backToListBtn" class="link-btn">&larr; Back to Reservations</button>
     <form id="dataForm">
         <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
+
+        <div id="divertNotice" class="divert-notice" style="display:none;"></div>
 
         <div class="row">
             <div class="flex-item" style="flex: 1;">
                 <label for="date">Catch Date</label>
                 <input type="date" id="date" name="date" required>
             </div>
-            <div class="flex-item" style="flex: 2;">
-                <label for="rodName">Member Surname</label>
-                <input type="text" id="rodName" name="rodName" placeholder="Surname" required>
-            </div>
         </div>
 
         <div class="row">
             <div class="flex-item" style="flex: 1;">
-                <label for="category">Beat</label>
+                <label for="category" id="categoryLabel">Beat</label>
                 <select id="category" name="category" required>
                     <option value="">-- Select --</option>
                 </select>
@@ -247,8 +404,8 @@
         </div>
 
         <!-- DNF row: when checked, collapses catch and observations sections -->
-        <div style="margin-bottom: 10px;">
-            <div id="dnfWrapper" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:4px; border:1px solid #e0e0e0; cursor:pointer;" onclick="document.getElementById('dnf').click()">
+        <div id="dnfWrapper" style="margin-bottom: 10px;">
+            <div id="dnfRow" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:4px; border:1px solid #e0e0e0; cursor:pointer;" onclick="document.getElementById('dnf').click()">
                 <input type="checkbox" id="dnf" name="dnf" onclick="event.stopPropagation()" style="width:20px; height:20px; cursor:pointer; margin:0; flex-shrink:0;">
                 <label for="dnf" style="font-size:0.9rem; font-weight:bold; cursor:pointer; margin:0; user-select:none;">Did Not Fish</label>
             </div>
@@ -277,8 +434,8 @@
                 <label>BT Retained</label>
                 <input type="number" name="v5" min="0" max="40" value="0">
             </div>
-            <div class="grid-checkbox-wrapper">
-                <label for="verified">Guest?</label>
+            <div id="guestWrapper" class="grid-checkbox-wrapper">
+                <label for="verified" id="verifiedLabel">Guest?</label>
                 <input type="checkbox" id="verified" name="verified">
             </div>
         </div>
@@ -290,8 +447,7 @@
         </div><!-- end observationsSection -->
 
         <div class="button-row">
-            <button type="submit" id="submitBtn" style="flex: 2;">Submit Record</button>
-            <button type="button" id="historyBtn" style="flex: 1; background-color: #177eb2;">Email My Returns YTD</button>
+            <button type="submit" id="submitBtn">Submit Record</button>
         </div>
     </form>
 </div>
@@ -309,7 +465,7 @@
     </div>
 </div>
 
-<!-- Generic choice modal: used for overwrite confirmation and outstanding-reservation resolution -->
+<!-- Generic choice modal: used for the existing-record overwrite confirmation -->
 <div id="choiceModal" style="display:none; position:fixed; z-index:110; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
     <div style="background:white; padding:20px; border-radius:8px; max-width:380px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
         <h3 id="choiceTitle" style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;"></h3>
@@ -345,10 +501,13 @@
 
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Show environment badge
-    const badge = document.getElementById('envBadge');
-    badge.textContent = isLocal ? 'LOCAL' : 'PRODUCTION';
-    badge.classList.add(isLocal ? 'local' : 'prod');
+    // Show environment badge on every screen, since the login screen is
+    // hidden entirely once logged in and a tester needs to be able to
+    // confirm which backend they're submitting to at every step.
+    [document.getElementById('envBadge'), document.getElementById('envBadgeList'), document.getElementById('envBadgeData')].forEach(badge => {
+        badge.textContent = isLocal ? 'LOCAL' : 'PRODUCTION';
+        badge.classList.add(isLocal ? 'local' : 'prod');
+    });
 
     // --- Beats: load from Supabase function, fall back to hardcoded ---
     // public.get_private_beats_anon_data() → table(id int, beat text, river_order text)
@@ -379,8 +538,10 @@
     })();
 
     // Holds the club password for the duration of the page session only.
-    // Needed to re-validate server-side on insert. Cleared on page close/refresh.
+    // Needed to re-validate server-side on every RPC call. Cleared on
+    // page close/refresh.
     let sessionPassword = '';
+    let loggedInSurname = '';
 
     // --- Login ---
     const loginBtn = document.getElementById('loginBtn');
@@ -423,14 +584,14 @@
                 return;
             }
 
-            // Both passed — store password for server-side re-validation on insert
+            // Both passed — store password for server-side re-validation on
+            // every subsequent RPC call.
             sessionPassword = password;
+            loggedInSurname = surname;
 
-            // Reveal data entry form
             document.getElementById('loginCard').style.display = 'none';
-            const dataSection = document.getElementById('dataSection');
-            dataSection.style.display = 'flex';
-            document.getElementById('rodName').value = surname;
+            document.getElementById('reservationListSection').style.display = 'flex';
+            await fetchAndRenderReservations();
 
         } catch (err) {
             showLoginError('Connection error. Please try again.');
@@ -449,17 +610,327 @@
         });
     });
 
+    // --- Reservation list ---
+    // Fetched in full on login and after every successful submission (max
+    // ~30 reservations/member/season, so one round-trip + client-side
+    // slicing for "show 5 / show more" is simpler and cheaper than
+    // server-side paging). Synthetic reservations are treated identically
+    // to real ones - no distinction shown, per design.
+    let allReservations = [];
+    let showAllReservations = false;
+
+    async function fetchAndRenderReservations() {
+        const { data, error } = await supabaseClient.rpc('get_member_reservations', {
+            p_password: sessionPassword,
+            p_surname: loggedInSurname
+        });
+        if (error) {
+            alert('Error loading reservations: ' + error.message);
+            return;
+        }
+        allReservations = data || [];
+        showAllReservations = false;
+        renderReservationList();
+    }
+
+    // The reservation currently selected via radio in the list - null until
+    // one is picked, read by the two shared action buttons below the list.
+    let selectedListReservation = null;
+
+    function renderReservationList() {
+        const container = document.getElementById('reservationList');
+        const enterCrBtn = document.getElementById('enterCrBtn');
+        const divertBtn = document.getElementById('divertBtn');
+        container.innerHTML = '';
+        selectedListReservation = null;
+        enterCrBtn.disabled = true;
+        divertBtn.disabled = true;
+        enterCrBtn.textContent = 'Enter Catch Return';
+
+        const toShow = showAllReservations ? allReservations : allReservations.slice(0, 5);
+
+        if (toShow.length === 0) {
+            container.innerHTML = '<p style="color:#666; font-size:0.85rem;">No reservations found for this season.</p>';
+        }
+
+        toShow.forEach((r, idx) => {
+            let statusClass, statusLabel;
+            if (!r.cr_exists) {
+                statusClass = 'awaiting'; statusLabel = 'Awaiting Catch Return';
+            } else if (r.cr_dnf) {
+                statusClass = 'dnf'; statusLabel = 'Did Not Fish Logged';
+            } else {
+                statusClass = 'logged'; statusLabel = 'Catch Return Logged';
+            }
+
+            const guestBadge = r.guest_cr_count > 0
+                ? `<br><span style="font-size:0.75rem; color:#4a7c59;">${r.guest_cr_count} Guest Catch${r.guest_cr_count === 1 ? '' : 'es'} Logged</span>`
+                : '';
+
+            const rowId = `reservationRow${idx}`;
+            const row = document.createElement('label');
+            row.className = 'reservation-row';
+            row.setAttribute('for', rowId);
+            row.innerHTML = `
+                <input type="radio" name="reservationRadioGroup" id="${rowId}">
+                <div class="reservation-row-content">
+                    <div>
+                        <strong>${r.beat}</strong><br>
+                        <span style="font-size:0.8rem; color:#666;">${r.reservation_date}</span>
+                    </div>
+                    <span class="reservation-status ${statusClass}">${statusLabel}${guestBadge}</span>
+                </div>
+            `;
+            row.querySelector('input').addEventListener('change', () => {
+                selectedListReservation = r;
+                enterCrBtn.disabled = false;
+                divertBtn.disabled = false;
+                enterCrBtn.textContent = r.cr_exists ? 'Edit Catch Return' : 'Enter Catch Return';
+            });
+            container.appendChild(row);
+        });
+
+        document.getElementById('showMoreBtn').style.display =
+            (!showAllReservations && allReservations.length > 5) ? 'block' : 'none';
+    }
+
+    document.getElementById('showMoreBtn').onclick = () => {
+        showAllReservations = true;
+        renderReservationList();
+    };
+
+    document.getElementById('enterCrBtn').onclick = () => enterMode('a', selectedListReservation);
+    document.getElementById('divertBtn').onclick = () => enterMode('b', selectedListReservation);
+    document.getElementById('noReservationBtn').onclick = () => enterMode('c');
+
+    document.getElementById('backToListBtn').onclick = () => {
+        document.getElementById('dataSection').style.display = 'none';
+        document.getElementById('reservationListSection').style.display = 'flex';
+    };
+
     // --- Data entry form ---
     const form = document.getElementById('dataForm');
     const modal = document.getElementById('confirmModal');
     const finalConfirmBtn = document.getElementById('finalConfirm');
 
-    // Holds the outcome of the outstanding-reservations resolution, read by
-    // finalConfirmBtn.onclick when it actually submits.
-    let pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
+    // 'a' = catch return for a selected reservation (real or Synthetic).
+    // 'b' = fished a different beat to a selected reservation.
+    // 'c' = no valid reservation showing.
+    let currentMode = null;
+    // For 'a': the selected reservation row. For 'b': the reservation being
+    // diverted from. For 'c': null (nothing selected).
+    let currentReservation = null;
+    // Guest catch returns are anonymous (no guest-name field, stored under
+    // the member's own rod_name with guest=true) - the only way to target a
+    // specific one for editing is its row id. null means "add a new guest
+    // catch"; non-null means "editing this existing guest catch return".
+    let currentGuestEditId = null;
 
-    // --- Generic choice-modal helper: shows a title/body/options, resolves
-    // with whichever button or list item the member picked. ---
+    function prefillCatchFields(record) {
+        form.dnf.checked = record.dnf;
+        form.v1.value = record.brown_trout_released;
+        form.v2.value = record.grayling;
+        form.v3.value = record.rainbow_trout;
+        form.v4.value = record.other_species;
+        form.v5.value = record.brown_trout_retained;
+        form.comments.value = record.comments || '';
+    }
+
+    function describeCatchRecord(record, submittedAt) {
+        return record.dnf
+            ? `submitted ${formatSubmittedAt(submittedAt)} — Did Not Fish`
+            : `submitted ${formatSubmittedAt(submittedAt)} — BT: ${record.brown_trout_released}, Grayling: ${record.grayling}, Rainbow: ${record.rainbow_trout}, Other: ${record.other_species}, BT Retained: ${record.brown_trout_retained}`;
+    }
+
+    // Ambiguity only exists once a guest catch has been logged against this
+    // reservation - only then is there more than one possible record to
+    // land on, so only then do we ask up front which one. With no guests,
+    // there's nothing to choose between - go straight to the member's own
+    // record (or a blank form) exactly as before.
+    async function resolveWhichCatchReturn(reservation) {
+        const { data: guestCatches, error: guestErr } = await supabaseClient
+            .rpc('get_guest_catch_returns_for_reservation', {
+                p_password:   sessionPassword,
+                p_surname:    loggedInSurname,
+                p_catch_date: reservation.reservation_date,
+                p_beat:       reservation.beat
+            });
+        if (guestErr) {
+            alert('Error loading catch returns: ' + guestErr.message);
+            return null;
+        }
+
+        let ownExisting = null;
+        if (reservation.cr_exists) {
+            const { data: ownRows, error: ownErr } = await supabaseClient
+                .rpc('check_existing_catch_return', {
+                    p_password: sessionPassword,
+                    p_surname: loggedInSurname,
+                    p_catch_date: reservation.reservation_date,
+                    p_beat: reservation.beat,
+                    p_guest: false
+                });
+            if (!ownErr && ownRows && ownRows.length > 0) ownExisting = ownRows[0];
+        }
+
+        const listItems = ownExisting
+            ? [{ value: 'member', label: `Your Catch Return — ${describeCatchRecord(ownExisting, reservation.cr_submitted_at)}` }]
+            : [{ value: 'new-member', label: '+ Enter Your Own Catch Return' }];
+        guestCatches.forEach(g => {
+            listItems.push({ value: g.id, label: `Guest Catch — ${describeCatchRecord(g, g.submitted_at)}` });
+        });
+        listItems.push({ value: 'new-guest', label: '+ Add a New Guest Catch' });
+
+        const choice = await showChoice({
+            title: 'Which Catch Return?',
+            bodyHTML: `<p>This reservation has more than one catch return logged. Choose which to edit, or add a new guest catch.</p>`,
+            listItems,
+            buttons: [{ label: 'Cancel', value: false, style: 'background:#95a5a6;' }]
+        });
+
+        if (choice === false || choice === null) return null;
+        return { choice, ownExisting, guestCatches };
+    }
+
+    async function enterMode(mode, reservation) {
+        let resolved = null;
+        if (mode === 'a' && reservation.guest_cr_count > 0) {
+            resolved = await resolveWhichCatchReturn(reservation);
+            if (!resolved) return; // cancelled - stay on the reservation list, untouched
+        }
+
+        currentMode = mode;
+        currentReservation = reservation || null;
+        currentGuestEditId = null;
+
+        document.getElementById('reservationListSection').style.display = 'none';
+        document.getElementById('dataSection').style.display = 'flex';
+
+        form.reset();
+        ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
+        form.dnf.checked = false;
+        form.verified.checked = false;
+        form.verified.disabled = false;
+        document.getElementById('verifiedLabel').textContent = 'Guest?';
+        form.comments.value = '';
+        // Baseline reset for every mode - catchSection/observationsSection
+        // visibility only otherwise changes via this event, so without an
+        // unconditional dispatch here, sections hidden by a DNF in a
+        // previous mode 'a' visit would incorrectly stay hidden after
+        // switching to mode 'b' or 'c' (mode 'a' re-dispatches below with
+        // the real pre-filled value once it's known).
+        form.dnf.dispatchEvent(new Event('change'));
+
+        const dateField = document.getElementById('date');
+        const beatSelect = document.getElementById('category');
+        const guestWrapper = document.getElementById('guestWrapper');
+        const dnfWrapperEl = document.getElementById('dnfWrapper');
+        const divertNoticeEl = document.getElementById('divertNotice');
+        const categoryLabel = document.getElementById('categoryLabel');
+
+        if (mode === 'a') {
+            dateField.value = reservation.reservation_date;
+            dateField.disabled = true;
+            beatSelect.value = reservation.beat;
+            beatSelect.disabled = true;
+            categoryLabel.textContent = 'Beat';
+            guestWrapper.style.display = 'flex';
+            dnfWrapperEl.style.display = 'block';
+            divertNoticeEl.style.display = 'none';
+
+            if (resolved) {
+                // The choice of *which* record already happened up front in
+                // resolveWhichCatchReturn() - the checkbox here just reflects
+                // that choice and is locked, so it can't be misread as "flip
+                // this record into a different one" mid-edit. To pick a
+                // different record, go back to the list and re-enter.
+                form.verified.disabled = true;
+                document.getElementById('verifiedLabel').textContent = 'Guest? (selected above)';
+                const { choice, ownExisting, guestCatches } = resolved;
+                if (choice === 'member') {
+                    form.verified.checked = false;
+                    prefillCatchFields(ownExisting);
+                } else if (choice === 'new-member') {
+                    form.verified.checked = false;
+                } else if (choice === 'new-guest') {
+                    form.verified.checked = true;
+                    currentGuestEditId = null;
+                } else {
+                    const existing = guestCatches.find(g => g.id === choice);
+                    form.verified.checked = true;
+                    currentGuestEditId = existing.id;
+                    prefillCatchFields(existing);
+                }
+                // The dnf change handler below unconditionally unchecks
+                // "Guest?" whenever DNF becomes checked (it assumes DNF
+                // implies a fresh member-only entry) - re-assert afterwards
+                // since we know definitively whether this is a guest record.
+                const isGuestChoice = form.verified.checked;
+                form.dnf.dispatchEvent(new Event('change'));
+                form.verified.checked = isGuestChoice;
+            } else {
+                // No guests logged against this reservation - nothing to
+                // disambiguate, go straight to the member's own existing
+                // record (may need correcting, e.g. DNF marked incorrectly)
+                // or a blank form if they haven't submitted one yet.
+                if (reservation.cr_exists) {
+                    const { data: existingRows, error } = await supabaseClient
+                        .rpc('check_existing_catch_return', {
+                            p_password: sessionPassword,
+                            p_surname: loggedInSurname,
+                            p_catch_date: reservation.reservation_date,
+                            p_beat: reservation.beat,
+                            p_guest: false
+                        });
+                    if (!error && existingRows && existingRows.length > 0) {
+                        prefillCatchFields(existingRows[0]);
+                    }
+                }
+                form.dnf.dispatchEvent(new Event('change'));
+            }
+
+        } else if (mode === 'b') {
+            dateField.value = reservation.reservation_date;
+            dateField.disabled = true;
+            beatSelect.value = '';
+            beatSelect.disabled = false;
+            categoryLabel.textContent = 'Beat You Actually Fished';
+            guestWrapper.style.display = 'none';
+            dnfWrapperEl.style.display = 'none';
+            divertNoticeEl.style.display = 'block';
+            divertNoticeEl.innerHTML = `Marking <strong>${reservation.beat}</strong> on <strong>${reservation.reservation_date}</strong> as Did Not Fish — enter what you actually fished below.`;
+
+        } else {
+            // 'c' - no valid reservation showing
+            dateField.value = '';
+            dateField.disabled = false;
+            beatSelect.value = '';
+            beatSelect.disabled = false;
+            categoryLabel.textContent = 'Beat';
+            guestWrapper.style.display = 'none';
+            dnfWrapperEl.style.display = 'block';
+            divertNoticeEl.style.display = 'none';
+        }
+    }
+
+    // Reachable only when the checkbox is enabled, which only happens when
+    // there was no existing-record ambiguity to resolve up front (see
+    // resolveWhichCatchReturn) - so checking it here always means "this is a
+    // brand new entry for a guest," never "switch to a different existing
+    // record." Just starts the fields fresh.
+    form.verified.addEventListener('change', function () {
+        currentGuestEditId = null;
+        if (currentMode === 'a' && this.checked) {
+            ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
+            form.dnf.checked = false;
+            form.comments.value = '';
+            form.dnf.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // --- Generic choice-modal helper (now only used for the existing-record
+    // overwrite confirmation, since reservation matching is no longer
+    // inferred - the member selects a reservation directly). ---
     const choiceModal = document.getElementById('choiceModal');
     const choiceTitle = document.getElementById('choiceTitle');
     const choiceBody = document.getElementById('choiceBody');
@@ -473,16 +944,33 @@
             choiceList.innerHTML = '';
             choiceButtons.innerHTML = '';
 
-            (listItems || []).forEach(item => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.textContent = item.label;
-                btn.style.cssText = 'background:#2c5282; margin-top:0;';
-                btn.onclick = () => { choiceModal.style.display = 'none'; resolve(item.value); };
-                choiceList.appendChild(btn);
-            });
+            if (listItems && listItems.length > 0) {
+                let selectedValue = null;
 
-            buttons.forEach(b => {
+                const selectBtn = document.createElement('button');
+                selectBtn.type = 'button';
+                selectBtn.textContent = 'Continue';
+                selectBtn.disabled = true;
+                selectBtn.style.cssText = 'background:#2c5282;';
+                selectBtn.onclick = () => { choiceModal.style.display = 'none'; resolve(selectedValue); };
+
+                listItems.forEach((item, idx) => {
+                    const optionId = `choiceOption${idx}`;
+                    const option = document.createElement('label');
+                    option.className = 'choice-option';
+                    option.setAttribute('for', optionId);
+                    option.innerHTML = `<input type="radio" name="choiceRadioGroup" id="${optionId}"><span>${item.label}</span>`;
+                    option.querySelector('input').addEventListener('change', () => {
+                        selectedValue = item.value;
+                        selectBtn.disabled = false;
+                    });
+                    choiceList.appendChild(option);
+                });
+
+                choiceButtons.appendChild(selectBtn);
+            }
+
+            (buttons || []).forEach(b => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.textContent = b.label;
@@ -495,144 +983,106 @@
         });
     }
 
+    function formatSubmittedAt(raw) {
+        if (!raw) return 'an earlier time';
+        // Postgres text-cast timestamps use a space instead of 'T', which some
+        // browsers won't parse reliably - normalize before parsing.
+        const parsed = new Date(raw.replace(' ', 'T'));
+        if (isNaN(parsed.getTime())) return raw;
+        return parsed.toLocaleString(undefined, {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    // Only mode 'a' can hit an existing record (modes 'b'/'c' always create a
+    // fresh Synthetic reservation, so there's nothing to have pre-existed
+    // for that new beat in the ordinary case). Guest entries never overwrite
+    // - multiple guest catches are allowed per beat/date. When the
+    // reservation has guest catches logged, resolveWhichCatchReturn() already
+    // made an explicit, informed choice of which record this is up front, so
+    // this second overwrite confirmation would just be a redundant repeat of
+    // the same information for that case - only needed for the simple case
+    // (no guests, editing the member's own record with no prior disambiguation
+    // step).
+    async function handlePreSubmitChecks() {
+        if (currentMode !== 'a' || form.verified.checked || !currentReservation.cr_exists || currentReservation.guest_cr_count > 0) {
+            return true;
+        }
+
+        const { data: existingRows, error } = await supabaseClient
+            .rpc('check_existing_catch_return', {
+                p_password: sessionPassword,
+                p_surname: loggedInSurname,
+                p_catch_date: currentReservation.reservation_date,
+                p_beat: currentReservation.beat,
+                p_guest: false
+            });
+        if (error) throw error;
+
+        if (existingRows && existingRows.length > 0) {
+            const existing = existingRows[0];
+            const overwrite = await showChoice({
+                title: 'Existing Record Found',
+                bodyHTML: `
+                    <p>You already have a record for <strong>${currentReservation.beat}</strong> on <strong>${currentReservation.reservation_date}</strong>, submitted <strong>${formatSubmittedAt(existing.submitted_at)}</strong>:</p>
+                    <p style="color:#666;">
+                        ${existing.dnf ? 'Did Not Fish' :
+                            `BT: ${existing.brown_trout_released}, Grayling: ${existing.grayling}, Rainbow: ${existing.rainbow_trout}, Other: ${existing.other_species}, BT Retained: ${existing.brown_trout_retained}`}
+                        ${existing.comments ? '<br>Comments: ' + existing.comments : ''}
+                    </p>
+                    <p>Submitting now will replace it with your new entry.</p>
+                `,
+                buttons: [
+                    { label: 'Overwrite', value: true, style: 'background:#c0392b;' },
+                    { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
+                ]
+            });
+            if (!overwrite) return false;
+        }
+        return true;
+    }
+
     function showReviewModal() {
         const formData = new FormData(form);
         const isDnf = form.dnf.checked;
+        let html;
 
-        document.getElementById('summaryContent').innerHTML = isDnf ? `
-            <strong>Member:</strong> ${formData.get('rodName')}<br>
-            <strong>Date:</strong> ${formData.get('date')}<br>
-            <strong>Beat:</strong> ${formData.get('category')}<br>
-            <hr style="border:0; border-top:1px dashed #ccc;">
-            <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
-        ` : `
-            <strong>Member:</strong> ${formData.get('rodName')}<br>
-            <strong>Date:</strong> ${formData.get('date')}<br>
-            <strong>Beat:</strong> ${formData.get('category')}<br>
-            <strong>Guest:</strong> ${form.verified.checked ? 'Yes' : 'No'}<br>
-            <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
-            <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
-            <strong>BT Retained:</strong> ${formData.get('v5')}<br>
-            <hr style="border:0; border-top:1px dashed #ccc;">
-            <strong>Observations:</strong> ${formData.get('comments') || 'None'}
-        `;
+        if (currentMode === 'b') {
+            html = `
+                <strong>Diverted from:</strong> ${currentReservation.beat} on ${currentReservation.reservation_date} — will be marked <strong>Did Not Fish</strong><br>
+                <strong>Actually fished:</strong> ${formData.get('category')}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
+                <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
+                <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+            `;
+        } else {
+            const catchDate = currentMode === 'a' ? currentReservation.reservation_date : formData.get('date');
+            const beat = currentMode === 'a' ? currentReservation.beat : formData.get('category');
+            html = isDnf ? `
+                <strong>Member:</strong> ${loggedInSurname}<br>
+                <strong>Date:</strong> ${catchDate}<br>
+                <strong>Beat:</strong> ${beat}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
+            ` : `
+                <strong>Member:</strong> ${loggedInSurname}<br>
+                <strong>Date:</strong> ${catchDate}<br>
+                <strong>Beat:</strong> ${beat}<br>
+                <strong>Guest:</strong> ${form.verified.checked ? (currentGuestEditId ? 'Yes (editing previous entry)' : 'Yes') : 'No'}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
+                <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
+                <strong>BT Retained:</strong> ${formData.get('v5')}<br>
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+            `;
+        }
+        document.getElementById('summaryContent').innerHTML = html;
         modal.style.display = 'flex';
-    }
-
-    // Resolves duplicate-record and missing-reservation ambiguity with the
-    // member before the review modal is shown. Non-guest, non-DNF submissions
-    // only - guests and self-declared DNFs skip reservation matching entirely.
-    async function resolveBeforeReview() {
-        const surname = form.rodName.value.trim();
-        const isDnf = form.dnf.checked;
-        const isGuest = form.verified.checked;
-        const catchDate = form.date.value;
-        const beat = form.category.value;
-
-        pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
-
-        // 1. Duplicate check
-        if (!isGuest) {
-            const { data: existingRows, error: existErr } = await supabaseClient
-                .rpc('check_existing_catch_return', {
-                    p_password: sessionPassword,
-                    p_surname: surname,
-                    p_catch_date: catchDate,
-                    p_beat: beat,
-                    p_guest: isGuest
-                });
-            if (existErr) throw existErr;
-
-            if (existingRows && existingRows.length > 0) {
-                const existing = existingRows[0];
-                const overwrite = await showChoice({
-                    title: 'Existing Record Found',
-                    bodyHTML: `
-                        <p>You already have a record for <strong>${beat}</strong> on <strong>${catchDate}</strong>:</p>
-                        <p style="color:#666;">
-                            ${existing.dnf ? 'Did Not Fish' :
-                                `BT: ${existing.brown_trout_released}, Grayling: ${existing.grayling}, Rainbow: ${existing.rainbow_trout}, Other: ${existing.other_species}, BT Retained: ${existing.brown_trout_retained}`}
-                            ${existing.comments ? '<br>Comments: ' + existing.comments : ''}
-                        </p>
-                        <p>Submitting now will replace it with your new entry.</p>
-                    `,
-                    buttons: [
-                        { label: 'Overwrite', value: true, style: 'background:#c0392b;' },
-                        { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
-                    ]
-                });
-                if (!overwrite) return false;
-            }
-        }
-
-        // 2. Reservation match / outstanding-reservations resolution
-        if (!isGuest && !isDnf) {
-            const { data: outstanding, error: outErr } = await supabaseClient
-                .rpc('get_outstanding_reservations', {
-                    p_password: sessionPassword,
-                    p_surname: surname
-                });
-            if (outErr) throw outErr;
-
-            const list = outstanding || [];
-            const exactMatch = list.find(r => r.reservation_date === catchDate && r.beat === beat);
-
-            if (!exactMatch) {
-                if (list.length === 0) {
-                    const confirmed = await showChoice({
-                        title: 'No Reservation Found',
-                        bodyHTML: `<p>We couldn't find any reservation for you this season, including for <strong>${beat}</strong> on <strong>${catchDate}</strong>.</p><p>Confirm you fished without a booking — this will be recorded as such.</p>`,
-                        buttons: [
-                            { label: 'Confirm — I had no reservation', value: true, style: 'background:#2c5282;' },
-                            { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
-                        ]
-                    });
-                    if (!confirmed) return false;
-                    pendingResolution.createSynthetic = true;
-                } else {
-                    const choice = await showChoice({
-                        title: 'No Matching Reservation',
-                        bodyHTML: `<p>We couldn't find a reservation for <strong>${beat}</strong> on <strong>${catchDate}</strong>. Is one of these the reservation you actually used?</p>`,
-                        listItems: list.map(r => ({
-                            label: `${r.beat} — ${r.reservation_date}`,
-                            value: { action: 'select', reservation: r }
-                        })),
-                        buttons: [
-                            { label: 'None of these — I had no reservation', value: { action: 'none' }, style: 'background:#2c5282;' }
-                        ]
-                    });
-
-                    if (choice.action === 'select') {
-                        const r = choice.reservation;
-                        const mistyped = await showChoice({
-                            title: 'Did You Mean This?',
-                            bodyHTML: `<p>Did you mean to enter <strong>${r.beat}</strong> on <strong>${r.reservation_date}</strong> instead of what you typed?</p>`,
-                            buttons: [
-                                { label: 'Yes, correct my entry', value: true, style: 'background:#27ae60;' },
-                                { label: "No, I fished something else", value: false, style: 'background:#2c5282;' }
-                            ]
-                        });
-
-                        if (mistyped) {
-                            // Correct the fields and re-resolve from the top, since the
-                            // corrected beat/date may itself have a duplicate to check.
-                            form.date.value = r.reservation_date;
-                            form.category.value = r.beat;
-                            return resolveBeforeReview();
-                        } else {
-                            pendingResolution.createSynthetic = true;
-                            pendingResolution.dnfOtherBeat = r.beat;
-                            pendingResolution.dnfOtherDate = r.reservation_date;
-                        }
-                    } else {
-                        pendingResolution.createSynthetic = true;
-                    }
-                }
-            }
-        }
-
-        return true;
     }
 
     form.addEventListener('submit', async e => {
@@ -643,7 +1093,7 @@
         submitBtn.innerText = 'Checking...';
 
         try {
-            const proceed = await resolveBeforeReview();
+            const proceed = await handlePreSubmitChecks();
             if (proceed) showReviewModal();
         } catch (err) {
             console.error('Resolution error:', err);
@@ -663,39 +1113,66 @@
         const formData = new FormData(form);
 
         try {
-            // public.insert_catch_return re-validates password + surname server-side
-            const { error: insertError } = await supabaseClient
-                .rpc('insert_catch_return', {
+            let error;
+
+            if (currentMode === 'a') {
+                ({ error } = await supabaseClient.rpc('submit_catch_return_for_reservation', {
                     p_password:    sessionPassword,
-                    p_surname:     formData.get('rodName'),
-                    p_catch_date:  formData.get('date'),
-                    p_beat:        formData.get('category'),
-                    p_dnf:         form.dnf.checked,
+                    p_surname:     loggedInSurname,
+                    p_catch_date:  currentReservation.reservation_date,
+                    p_beat:        currentReservation.beat,
                     p_guest:       form.verified.checked,
+                    p_dnf:         form.dnf.checked,
                     p_bt_released: Number(formData.get('v1')),
                     p_grayling:    Number(formData.get('v2')),
                     p_rainbow:     Number(formData.get('v3')),
                     p_other:       Number(formData.get('v4')),
                     p_bt_retained: Number(formData.get('v5')),
                     p_comments:    form.comments.value.trim(),
-                    p_create_synthetic: pendingResolution.createSynthetic,
-                    p_dnf_other_beat:   pendingResolution.dnfOtherBeat,
-                    p_dnf_other_date:   pendingResolution.dnfOtherDate
-                });
+                    p_id:          form.verified.checked ? currentGuestEditId : null
+                }));
+            } else if (currentMode === 'b') {
+                ({ error } = await supabaseClient.rpc('submit_catch_return_different_beat', {
+                    p_password:      sessionPassword,
+                    p_surname:       loggedInSurname,
+                    p_original_beat: currentReservation.beat,
+                    p_catch_date:    currentReservation.reservation_date,
+                    p_new_beat:      formData.get('category'),
+                    p_dnf:           false,
+                    p_bt_released:   Number(formData.get('v1')),
+                    p_grayling:      Number(formData.get('v2')),
+                    p_rainbow:       Number(formData.get('v3')),
+                    p_other:         Number(formData.get('v4')),
+                    p_bt_retained:   Number(formData.get('v5')),
+                    p_comments:      form.comments.value.trim()
+                }));
+            } else {
+                ({ error } = await supabaseClient.rpc('submit_catch_return_no_reservation', {
+                    p_password:    sessionPassword,
+                    p_surname:     loggedInSurname,
+                    p_catch_date:  formData.get('date'),
+                    p_beat:        formData.get('category'),
+                    p_dnf:         form.dnf.checked,
+                    p_bt_released: Number(formData.get('v1')),
+                    p_grayling:    Number(formData.get('v2')),
+                    p_rainbow:     Number(formData.get('v3')),
+                    p_other:       Number(formData.get('v4')),
+                    p_bt_retained: Number(formData.get('v5')),
+                    p_comments:    form.comments.value.trim()
+                }));
+            }
 
-            if (insertError) throw insertError;
+            if (error) throw error;
 
-            alert('Success! Your catch return has been recorded.');
-            form.reset();
-            // Re-populate surname since form.reset() clears it
-            document.getElementById('rodName').value = document.getElementById('loginSurname').value.trim();
-            // Restore sections hidden by DNF (form.reset() unchecks the box but won't re-show them)
-            document.getElementById('catchSection').style.display = 'block';
-            document.getElementById('observationsSection').style.display = 'flex';
-            document.getElementById('dnfWrapper').style.backgroundColor = '';
-            document.getElementById('dnfWrapper').style.borderColor = '#e0e0e0';
-            pendingResolution = { createSynthetic: false, dnfOtherBeat: null, dnfOtherDate: null };
             modal.style.display = 'none';
+            alert('Success! Your catch return has been recorded.');
+
+            // Return to the reservation list, refreshed - so a reservation
+            // just created (modes 'b'/'c') is immediately available for a
+            // follow-up entry, e.g. a guest catch against the same beat/date.
+            document.getElementById('dataSection').style.display = 'none';
+            document.getElementById('reservationListSection').style.display = 'flex';
+            await fetchAndRenderReservations();
 
         } catch (err) {
             console.error('Insert error:', err);
@@ -711,12 +1188,12 @@
         const isDnf = this.checked;
         const catchSection = document.getElementById('catchSection');
         const observationsSection = document.getElementById('observationsSection');
-        const dnfWrapper = document.getElementById('dnfWrapper');
+        const dnfRow = document.getElementById('dnfRow');
 
         catchSection.style.display = isDnf ? 'none' : 'block';
         observationsSection.style.display = isDnf ? 'none' : 'flex';
-        dnfWrapper.style.backgroundColor = isDnf ? '#fff3cd' : '';
-        dnfWrapper.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
+        dnfRow.style.backgroundColor = isDnf ? '#fff3cd' : '';
+        dnfRow.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
 
         if (isDnf) {
             ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
@@ -727,15 +1204,7 @@
 
     // --- History button ---
     document.getElementById('historyBtn').onclick = async () => {
-        const name = document.getElementById('rodName').value.trim();
         const historyBtn = document.getElementById('historyBtn');
-
-        if (!name) {
-            alert('Please enter your Member Surname before requesting your data.');
-            document.getElementById('rodName').focus();
-            return;
-        }
-
         historyBtn.disabled = true;
         historyBtn.textContent = 'Sending Email...';
 
@@ -746,7 +1215,7 @@
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${supabaseKey}`
                 },
-                body: JSON.stringify({ surname: name })
+                body: JSON.stringify({ surname: loggedInSurname, clubPassword: sessionPassword })
             });
 
             const result = await response.json();
