@@ -14,9 +14,10 @@ show_menu() {
     echo "2) Stop Supabase"
     echo "3) Check Status"
     echo "4) Restart Instance"
-    echo "5) Exit"
+    echo "5) Upgrade Supabase CLI (brew)"
+    echo "6) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-5]: "
+    echo -n "Choose an option [1-6]: "
 }
 
 while true; do
@@ -45,6 +46,16 @@ while true; do
             supabase stop && supabase start
             ;;
         5)
+            echo "⬆️  Upgrading Supabase CLI..."
+            echo "🛑 Stopping Supabase first (avoids running containers on a different CLI version than what's installed)..."
+            supabase stop
+            brew update && brew upgrade supabase
+            echo "✅ Now running:"
+            supabase --version
+            echo "🚀 Starting Supabase back up..."
+            supabase start
+            ;;
+        6)
             echo "👋 Goodbye!"
             exit 0
             ;;
