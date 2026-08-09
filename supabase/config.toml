@@ -1,3 +1,8 @@
+[studio]
+enabled = false
+
+[analytics]
+enabled = false
 
 [functions.send_Res_CR_history_email]
 enabled = true
