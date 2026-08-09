@@ -33,7 +33,12 @@ while true; do
             ;;
         3)
             echo "📊 Checking Status..."
-            supabase status
+            status_output=$(supabase status 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$status_output"
+            else
+                echo "⏹️  Supabase is stopped."
+            fi
             ;;
         4)
             echo "🔄 Restarting..."
