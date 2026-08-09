@@ -33,7 +33,7 @@ def setup():
 
 
 def setup_front_page(conn):
-    membership_year = conn.execute(text("SELECT target_year FROM year_param WHERE id = 1")).scalar()
+    membership_year = conn.execute(text("SELECT target_year FROM private.year_param WHERE id = 1")).scalar()
     print(f"Database parameter set to {membership_year}. All views are now synchronized.")
 
     # 1.    Fetch full version history once
@@ -92,7 +92,7 @@ def setup_front_page(conn):
 def generate_report_sections(conn):
 
     # 1. Fetch the data for the Member Catch Return Submissions section
-    query = "select * from public.view_secrep_membername_catchreturns_count_operational"
+    query = "select * from private.view_secrep_membername_catchreturns_count_operational"
     df_members = pd.read_sql_query(query, conn)
 
     total_reservations = df_members['reservations_count'].sum()

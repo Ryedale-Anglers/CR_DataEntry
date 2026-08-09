@@ -59,6 +59,15 @@
             justify-content: center;
             text-align: center;
             font-size: 0.6rem;
+            /* Overrides .cell's single-line 20px height/line-height - date
+               headers wrap onto two lines (day / month) whenever the month
+               abbreviation is too wide for the 40px column (varies by month,
+               not just August - e.g. "01 Aug" wraps where "30 Jul" doesn't
+               at this font size), so the box needs room for two lines
+               instead of clipping the second one. */
+            height: 28px;
+            line-height: 1.15;
+            white-space: normal;
         }
 
         .beat-name-cell {
