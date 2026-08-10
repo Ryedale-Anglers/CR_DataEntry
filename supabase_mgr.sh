@@ -15,9 +15,10 @@ show_menu() {
     echo "3) Check Status"
     echo "4) Restart Instance"
     echo "5) Upgrade Supabase CLI (brew)"
-    echo "6) Exit"
+    echo "6) List Available Backups"
+    echo "7) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-6]: "
+    echo -n "Choose an option [1-7]: "
 }
 
 while true; do
@@ -56,6 +57,10 @@ while true; do
             supabase start
             ;;
         6)
+            echo "🗄️  Available backups in /var/backups/cr-dataentry/:"
+            ls -lh /var/backups/cr-dataentry/
+            ;;
+        7)
             echo "👋 Goodbye!"
             exit 0
             ;;
