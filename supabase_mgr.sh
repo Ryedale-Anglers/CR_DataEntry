@@ -14,9 +14,11 @@ show_menu() {
     echo "2) Stop Supabase"
     echo "3) Check Status"
     echo "4) Restart Instance"
-    echo "5) Exit"
+    echo "5) Upgrade Supabase CLI (brew)"
+    echo "6) List Available Backups"
+    echo "7) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-5]: "
+    echo -n "Choose an option [1-7]: "
 }
 
 while true; do
@@ -33,13 +35,32 @@ while true; do
             ;;
         3)
             echo "📊 Checking Status..."
-            supabase status
+            status_output=$(supabase status 2>&1)
+            if [ $? -eq 0 ]; then
+                echo "$status_output"
+            else
+                echo "⏹️  Supabase is stopped."
+            fi
             ;;
         4)
             echo "🔄 Restarting..."
             supabase stop && supabase start
             ;;
         5)
+            echo "⬆️  Upgrading Supabase CLI..."
+            echo "🛑 Stopping Supabase first (avoids running containers on a different CLI version than what's installed)..."
+            supabase stop
+            brew update && brew upgrade supabase
+            echo "✅ Now running:"
+            supabase --version
+            echo "🚀 Starting Supabase back up..."
+            supabase start
+            ;;
+        6)
+            echo "🗄️  Available backups in /var/backups/cr-dataentry/:"
+            ls -lh /var/backups/cr-dataentry/
+            ;;
+        7)
             echo "👋 Goodbye!"
             exit 0
             ;;

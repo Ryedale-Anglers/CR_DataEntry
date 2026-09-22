@@ -5,6 +5,7 @@ import io
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -42,13 +43,54 @@ PAYLOAD = {
 
 # 1. Supabase Connection ---
 # --- CONFIGURATION FROM ENV ---
-SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
-#SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
+CLOUD_DB_URL = os.getenv('CLOUD_DB_URL')
+CLOUD_DB_URL_POOLER = os.getenv('CLOUD_DB_URL_POOLER')
+LOCAL_DB_URL = os.getenv('LOCAL_DB_URL')
 
-if not SUPABASE_CONN_STRING:
+# Set ETL_ENV=local in .env (or export it before running) to point this run
+# at your local Supabase instance instead of production. Defaults to cloud
+# so the scheduled/unattended run is unaffected.
+ETL_ENV = os.getenv('ETL_ENV', 'cloud').lower()
+
+if ETL_ENV == 'local':
+    if not LOCAL_DB_URL:
+        raise ValueError("ETL_ENV=local but LOCAL_DB_URL is not set in .env.")
+elif not CLOUD_DB_URL:
     raise ValueError("Missing environment variable. Check your .env file.")
 
-engine = create_engine(SUPABASE_CONN_STRING)
+def build_engine():
+    """
+    In local mode, connects directly to the local Supabase instance - no
+    pooler fallback needed since there's no IPv6/network variance to handle.
+    In cloud mode, tries the direct connection first (requires an
+    IPv6-capable router), falling back to the Session Pooler (IPv4-compatible)
+    if that fails, so the unattended cron/systemd run works on either network
+    without manual changes.
+    """
+    if ETL_ENV == 'local':
+        local_engine = create_engine(LOCAL_DB_URL)
+        with local_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("Connected to local Supabase instance.")
+        return local_engine
+
+    direct_engine = create_engine(CLOUD_DB_URL)
+    try:
+        with direct_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("Connected to Supabase via direct connection.")
+        return direct_engine
+    except OperationalError as e:
+        print(f"Direct connection failed ({e}); falling back to connection pooler...")
+        if not CLOUD_DB_URL_POOLER:
+            raise ValueError("Direct connection failed and CLOUD_DB_URL_POOLER is not set in .env.")
+        pooler_engine = create_engine(CLOUD_DB_URL_POOLER)
+        with pooler_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("Connected to Supabase via connection pooler.")
+        return pooler_engine
+
+engine = build_engine()
 
 def run_reservations_download():
     print(f"Bypassing the UI to download report for: {DATE_STR}...")
@@ -139,7 +181,7 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
         df_reservations = pd.read_csv(csv_buffer, skiprows=2, names=['date', 'resource', 'name'])
         
         df_reservations.columns = df_reservations.columns.str.strip()
-        print(f"Fetched {len(df_reservations)} records from memory buffer.")
+        #print(f"Fetched {len(df_reservations)} records from memory buffer.")
         print(f"Fetched {len(df_reservations)} records reservations CSV.")
 
         # --- Truncate private schema table ---
@@ -180,6 +222,14 @@ def match_and_update_reservation_names(conn):
         )
         master_lookup = {row[0].upper(): row[0] for row in result.fetchall()}
 
+        # Manual overrides for names iBookFishing sends that will never
+        # algorithmically match (misspellings, nicknames, etc). Keyed on the
+        # booking name exactly as it arrives (whitespace-normalised, upper-cased).
+        result = conn.execute(
+            text("SELECT UPPER(TRIM(booking_name)), cr_name FROM private.reservation_name_aliases")
+        )
+        alias_lookup = {row[0]: row[1] for row in result.fetchall()}
+
         # Read from private (source of truth going forward)
         result = conn.execute(text("SELECT id, name FROM private.reservations_confirmed_staging"))
         updates = []
@@ -188,6 +238,12 @@ def match_and_update_reservation_names(conn):
             if not full_name: continue
             parts = full_name.strip().split()
             if len(parts) < 2: continue
+
+            # Tier 0: Manual alias override (e.g. misspellings from iBookFishing)
+            alias_key = " ".join(parts).upper()
+            if alias_key in alias_lookup:
+                updates.append({"cr_name": alias_lookup[alias_key], "id": row_id})
+                continue
 
             surname = parts[-1].upper()
             given_names = parts[:-1]
@@ -211,6 +267,27 @@ def match_and_update_reservation_names(conn):
                 print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
 
         if updates:
+            # A Synthetic placeholder may already occupy the exact (date, resource,
+            # cr_name) slot this real reservation is about to take, if a catch
+            # return was submitted for it before this download synced (see
+            # insert_catch_return in Supabase). The real reservation supersedes
+            # the placeholder, so remove it first - otherwise the UPDATE below
+            # violates uq_priv_reservation_date_cr_name and rolls back this
+            # entire run.
+            conn.execute(
+                text("""
+                    DELETE FROM private.reservations_confirmed_staging synth
+                    WHERE synth.name = 'Synthetic'
+                      AND synth.cr_name = :cr_name
+                      AND EXISTS (
+                          SELECT 1 FROM private.reservations_confirmed_staging real_row
+                          WHERE real_row.id = :id
+                            AND real_row.date = synth.date
+                            AND real_row.resource = synth.resource
+                      )
+                """),
+                updates
+            )
             conn.execute(
                 text("UPDATE private.reservations_confirmed_staging SET cr_name = :cr_name WHERE id = :id"),
                 updates
