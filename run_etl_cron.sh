@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs the Catch Returns / Reservations ETL.
+# Runs the reservations-only ETL (catch returns now come from index_supabase.html).
 # Scheduled via systemd timer: cr-dataentry-etl.timer (daily 13:00, Persistent=true)
 
 set -euo pipefail
@@ -28,6 +28,6 @@ cd "$REPO_DIR"
         WAITED=$((WAITED + 5))
     done
 
-    "$REPO_DIR/venv/bin/python3" "$REPO_DIR/etl_catch_returns_and_reservations_to_supabase.py"
+    "$REPO_DIR/venv/bin/python3" "$REPO_DIR/etl_reservations_only_to_supabase.py"
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') finished scheduled ETL run ====="
 } >> "$LOG_FILE" 2>&1
