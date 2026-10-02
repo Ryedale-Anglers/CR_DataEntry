@@ -18,6 +18,7 @@ URL = os.getenv('IBOOKFISHING_REPORT_PAGE_URL')
 IBOOKFISHING_REPORT_SHSEC = os.getenv('IBOOKFISHING_REPORT_SHSEC')
 IBOOKFISHING_REPORT_CALENDAR_ID = os.getenv('IBOOKFISHING_REPORT_CALENDAR_ID')
 IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
+GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID')
 
 # The exact string you type into the browser
 # It defines 'from the start of the season until today' for the report'
@@ -44,35 +45,17 @@ PAYLOAD = {
 # --- CONFIGURATION FROM ENV ---
 CLOUD_DB_URL = os.getenv('CLOUD_DB_URL')
 CLOUD_DB_URL_POOLER = os.getenv('CLOUD_DB_URL_POOLER')
-LOCAL_DB_URL = os.getenv('LOCAL_DB_URL')
+#SUPABASE_CONN_STRING = os.getenv('LOCAL_DB_URL')
 
-# Set ETL_ENV=local in .env (or export it before running) to point this run
-# at your local Supabase instance instead of production. Defaults to cloud
-# so the scheduled/unattended run is unaffected.
-ETL_ENV = os.getenv('ETL_ENV', 'cloud').lower()
-
-if ETL_ENV == 'local':
-    if not LOCAL_DB_URL:
-        raise ValueError("ETL_ENV=local but LOCAL_DB_URL is not set in .env.")
-elif not CLOUD_DB_URL:
+if not CLOUD_DB_URL:
     raise ValueError("Missing environment variable. Check your .env file.")
 
 def build_engine():
     """
-    In local mode, connects directly to the local Supabase instance - no
-    pooler fallback needed since there's no IPv6/network variance to handle.
-    In cloud mode, tries the direct connection first (requires an
-    IPv6-capable router), falling back to the Session Pooler (IPv4-compatible)
-    if that fails, so the unattended cron/systemd run works on either network
-    without manual changes.
+    Tries the direct connection first (requires an IPv6-capable router).
+    Falls back to the Session Pooler (IPv4-compatible) if that fails, so the
+    unattended cron/systemd run works on either network without manual changes.
     """
-    if ETL_ENV == 'local':
-        local_engine = create_engine(LOCAL_DB_URL)
-        with local_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        print("Connected to local Supabase instance.")
-        return local_engine
-
     direct_engine = create_engine(CLOUD_DB_URL)
     try:
         with direct_engine.connect() as conn:
@@ -105,65 +88,109 @@ def run_reservations_download():
         print(f"Network error: {e}")
         return None
 
+def refresh_catch_returns_data(conn):
+    try:
+        sheet_id = GOOGLE_SHEETS_ID
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        df_new = pd.read_csv(url)
+
+        mapping = {
+            "Timestamp": "timestamp", "Rod Name": "rod_name", "Date": "catch_date",
+            "Beat": "beat", "Brown Trout Released": "brown_trout_released",
+            "Grayling": "grayling", "Rainbow Trout": "rainbow_trout",
+            "Other Species": "other_species", "Brown Trout Retained": "brown_trout_retained",
+            "Guest": "guest", "Comments": "comments", "DNF": "dnf"
+        }
+        df_new.rename(columns=mapping, inplace=True)
+        df_final = df_new[list(mapping.values())].copy()
+        
+        # --- FIXES START HERE ---
+        # 1. Convert Yes/No to Boolean
+        df_final['guest'] = df_final['guest'].map({'Yes': True, 'No': False})
+        #
+        #Sort out the dnf column which might have nulls and is being inserted into a boolean field
+        # 1. Map 'Yes' to True, and 'No' to False. 
+        # Anything else (like empty/NULL) will become NaN temporarily.
+        df_final['dnf'] = df_final['dnf'].map({'Yes': True, 'No': False})
+
+        # 2. Now explicitly turn those NaNs (the empty cells) into False.
+        df_final['dnf'] = df_final['dnf'].fillna(False)
+
+        # 3. Final safety check: ensure the column is a boolean type for the DB
+        df_final['dnf'] = df_final['dnf'].astype(bool)
+        
+        # 2. Ensure date conversion
+        df_final['catch_date'] = pd.to_datetime(df_final['catch_date']).dt.date
+        # --- FIXES END HERE ---
+
+        print(f"Fetched {len(df_final)} records from Google Sheets.")
+
+        # Deduplicate non-guest records in memory before insert so the batch load
+        # respects the partial unique index (rod_name, catch_date, beat WHERE guest=false).
+        # Mirrors the deduplicate_catch_returns SQL step: keep latest by timestamp.
+        original_count = len(df_final)
+        df_final['_ts_sort'] = pd.to_datetime(df_final['timestamp'], errors='coerce')
+        guest_mask = df_final['guest'].fillna(False) == True
+        df_non_guest = (
+            df_final[~guest_mask]
+            .sort_values('_ts_sort', ascending=False)
+            .drop_duplicates(subset=['rod_name', 'catch_date', 'beat'], keep='first')
+        )
+        df_final = (
+            pd.concat([df_non_guest, df_final[guest_mask]])
+            .drop(columns=['_ts_sort'])
+            .reset_index(drop=True)
+        )
+        removed = original_count - len(df_final)
+        if removed > 0:
+            print(f"⚠️  Removed {removed} duplicate record(s) from Google Sheets data before insert.")
+
+        print(f"Wiping old PRIVATE catch_returns_staging data...")
+        conn.execute(text("TRUNCATE TABLE private.catch_returns_staging_table RESTART IDENTITY;"))
+
+        print(f"Uploading {len(df_final)} fresh records to private...")
+        df_final.to_sql('catch_returns_staging_table', conn, schema='private', if_exists='append', index=False)
+        print(f"✅ Catch Returns Sync of private complete!")
+    except Exception as e:
+        print(f"❌ Catch Returns Error: {e}")
+        raise e
+
 def refresh_reservations_table_data(csv_bytes, table_name, conn):
-    """
-    Reconciles the reservations table against the freshly downloaded season CSV,
-    instead of truncating and reloading it. Truncate/reload would silently wipe
-    out the 'Synthetic' reservation rows created in real time by catch-return
-    submissions (see insert_catch_return in Supabase), since those never appear
-    in the ibookfishing download. So reconciliation only manages rows sourced
-    from the download itself (name != 'Synthetic'): rows no longer present in
-    the fresh download are deleted (covers cancellations/changes), and rows not
-    yet staged are inserted.
-    """
     try:
         # Wrap bytes in a stream so Pandas can read it like a file
         csv_buffer = io.BytesIO(csv_bytes)
-
+        
         df_reservations = pd.read_csv(csv_buffer, skiprows=2, names=['date', 'resource', 'name'])
+        
         df_reservations.columns = df_reservations.columns.str.strip()
+        #print(f"Fetched {len(df_reservations)} records from memory buffer.")
         print(f"Fetched {len(df_reservations)} records reservations CSV.")
 
+        # --- Truncate private schema table ---
         private_table = f"private.{table_name}"
 
+        print(f"Wiping old {private_table} data...")
+        conn.execute(text(f"TRUNCATE TABLE {private_table} RESTART IDENTITY;"))
+
+        res_mapping = {
+            "Start date": "date",
+            "Beat": "resource",
+            "Name": "name"
+        }
+        
         target_cols = ["date", "resource", "name"]
         df_final = df_reservations[target_cols].copy()
-        df_final['date'] = pd.to_datetime(df_final['date'], errors='coerce').dt.date
 
-        existing = pd.read_sql(
-            text(f"SELECT date, resource, name FROM {private_table} WHERE name != 'Synthetic'"),
-            conn
-        )
+        # Data Type Cleanup
+        if 'date' in df_final.columns:
+            df_final['date'] = pd.to_datetime(df_final['date'], errors='coerce').dt.date
 
-        fresh_keys = set(df_final[['date', 'resource', 'name']].itertuples(index=False, name=None))
-        existing_keys = set(existing[['date', 'resource', 'name']].itertuples(index=False, name=None))
-
-        to_delete = existing_keys - fresh_keys
-        to_insert_keys = fresh_keys - existing_keys
-
-        if to_delete:
-            print(f"Reconciling {private_table}: removing {len(to_delete)} cancelled/changed reservation(s)...")
-            conn.execute(
-                text(f"""
-                    DELETE FROM {private_table}
-                    WHERE date = :date AND resource = :resource AND name = :name
-                """),
-                [{"date": d, "resource": r, "name": n} for d, r, n in to_delete]
-            )
-
-        if to_insert_keys:
-            df_to_insert = df_final[
-                df_final[['date', 'resource', 'name']].apply(tuple, axis=1).isin(to_insert_keys)
-            ]
-            print(f"Reconciling {private_table}: inserting {len(df_to_insert)} new reservation(s)...")
-            df_to_insert.to_sql(table_name, conn, schema='private', if_exists='append', index=False)
-        else:
-            print(f"Reconciling {private_table}: no new reservations to insert.")
-
-        print(f"✅ Table '{private_table}' reconciled successfully.")
+        # --- Upload to private schema table ---
+        df_final.to_sql(table_name, conn, schema='private', if_exists='append', index=False)
+        print(f"✅ Table '{private_table}' refreshed successfully.")
 
     except Exception as e:
-        print(f"❌ Reservations Reconcile Error: {e}")
+        print(f"❌ Reservations Upload Error: {e}")
         raise e
 
 def match_and_update_reservation_names(conn):
@@ -177,14 +204,6 @@ def match_and_update_reservation_names(conn):
         )
         master_lookup = {row[0].upper(): row[0] for row in result.fetchall()}
 
-        # Manual overrides for names iBookFishing sends that will never
-        # algorithmically match (misspellings, nicknames, etc). Keyed on the
-        # booking name exactly as it arrives (whitespace-normalised, upper-cased).
-        result = conn.execute(
-            text("SELECT UPPER(TRIM(booking_name)), cr_name FROM private.reservation_name_aliases")
-        )
-        alias_lookup = {row[0]: row[1] for row in result.fetchall()}
-
         # Read from private (source of truth going forward)
         result = conn.execute(text("SELECT id, name FROM private.reservations_confirmed_staging"))
         updates = []
@@ -193,12 +212,6 @@ def match_and_update_reservation_names(conn):
             if not full_name: continue
             parts = full_name.strip().split()
             if len(parts) < 2: continue
-
-            # Tier 0: Manual alias override (e.g. misspellings from iBookFishing)
-            alias_key = " ".join(parts).upper()
-            if alias_key in alias_lookup:
-                updates.append({"cr_name": alias_lookup[alias_key], "id": row_id})
-                continue
 
             surname = parts[-1].upper()
             given_names = parts[:-1]
@@ -255,15 +268,6 @@ def match_and_update_reservation_names(conn):
         print(f"❌ Name Matching Error: {e}")
         raise e
     
-# --- Legacy batch fixup functions ---
-# These four functions (insert_dnf_for_beat_mismatch, insert_synthetic_reservations,
-# mark_wrong_beat_submissions_as_dnf, deduplicate_catch_returns) are no longer called
-# by the automated run below. Catch returns now arrive one at a time via
-# Supabase's insert_catch_return RPC, which resolves synthetic reservations,
-# beat/date mismatches, and dedup interactively with the member at submission
-# time instead of inferring them after the fact. Kept here, callable manually,
-# only for repairing/backfilling historic data.
-
 def insert_dnf_for_beat_mismatch(conn):
     """
     Detects the edge case where a member has a reservation for Beat_A on a given
@@ -388,10 +392,7 @@ def insert_synthetic_reservations(conn):
     try:
         schema = "private"
         missing_sql = text(f"""
-            -- DISTINCT ON keeps ONE resource per orphan catch return. Where several
-            -- resources share a beat_id (17. Fishing Hut / 18. Railway Bridge), the
-            -- alphabetically first one is used so only one synthetic reservation exists.
-            SELECT DISTINCT ON (cr.catch_date, cr.rod_name, b.id)
+            SELECT
                 cr.catch_date,
                 cr.rod_name,
                 rb.beat    AS resource
@@ -410,7 +411,6 @@ def insert_synthetic_reservations(conn):
                 AND   r.cr_name = cr.rod_name
                 AND   rb2.beat_id = b.id
             )
-            ORDER BY cr.catch_date, cr.rod_name, b.id, rb.beat
         """)
 
         result = conn.execute(missing_sql)
@@ -589,20 +589,30 @@ if __name__ == "__main__":
         downloaded_data = run_reservations_download()
         
         if downloaded_data:
-            with engine.begin() as conn:
+            with engine.begin() as conn: 
                 print(f"🚀 Starting Master Sync...")
-
-                # 2. Reconcile the reservations staging table against the download
+                
+                # 2. Pass the bytes directly to the processing function
                 refresh_reservations_table_data(
-                    downloaded_data,
+                    downloaded_data, 
                     'reservations_confirmed_staging',
                     conn
                 )
-
-                # 3. Match reservation names to canonical member names
+                
+                # 3. Match Names & Catch Returns
                 print(f"Starting - match_and_update_reservation_name")
                 match_and_update_reservation_names(conn)
-
+                print(f"Starting - Refresh Catch Returns")
+                refresh_catch_returns_data(conn)
+                print(f"De-duplicating Catch Returns")
+                deduplicate_catch_returns(conn)
+                print(f"Starting - insert_synthetic_reservations")
+                insert_synthetic_reservations(conn)
+                print(f"Starting - mark_wrong_beat_submissions_as_dnf")
+                mark_wrong_beat_submissions_as_dnf(conn)
+                print(f"Starting - insert_dnf_for_beat_mismatch")
+                insert_dnf_for_beat_mismatch(conn)
+                
                 print("✅ All steps completed.")
         else:
             print("No data received from download.")
