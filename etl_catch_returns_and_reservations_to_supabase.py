@@ -424,7 +424,10 @@ def insert_synthetic_reservations(conn):
     try:
         schema = "private"
         missing_sql = text(f"""
-            SELECT
+            -- DISTINCT ON keeps ONE resource per orphan catch return. Where several
+            -- resources share a beat_id (17. Fishing Hut / 18. Railway Bridge), the
+            -- alphabetically first one is used so only one synthetic reservation exists.
+            SELECT DISTINCT ON (cr.catch_date, cr.rod_name, b.id)
                 cr.catch_date,
                 cr.rod_name,
                 rb.beat    AS resource
@@ -443,6 +446,7 @@ def insert_synthetic_reservations(conn):
                 AND   r.cr_name = cr.rod_name
                 AND   rb2.beat_id = b.id
             )
+            ORDER BY cr.catch_date, cr.rod_name, b.id, rb.beat
         """)
 
         result = conn.execute(missing_sql)
