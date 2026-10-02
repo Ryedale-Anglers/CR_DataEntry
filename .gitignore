@@ -24,6 +24,7 @@ Thumbs.db
 venv/
 ENV/
 env/
+__pycache__/
 
 # SQLite
 *.sqlite3

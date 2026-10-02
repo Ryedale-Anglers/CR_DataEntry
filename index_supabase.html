@@ -792,13 +792,22 @@
         guestCatches.forEach(g => {
             listItems.push({ value: g.id, label: `Guest Catch — ${describeCatchRecord(g, g.submitted_at)}` });
         });
-        listItems.push({ value: 'new-guest', label: '+ Add a New Guest Catch' });
+        // Rule: a guest catch can't be added until the member's own catch
+        // return exists for this reservation (enforced server-side too, in
+        // submit_catch_return_for_reservation) - only offer the option once
+        // it does. Any guest catches already logged (above) stay editable
+        // regardless, in case they predate this rule.
+        if (ownExisting) {
+            listItems.push({ value: 'new-guest', label: '+ Add a New Guest Catch' });
+        }
 
         const choice = await showChoice({
             title: 'Which Catch Return?',
             bodyHTML: guestCatches.length > 0
-                ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit, or add another.</p>`
-                : `<p>Choose which catch return to edit, or add one for a guest.</p>`,
+                ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit${ownExisting ? ', or add another' : ''}.</p>`
+                : (ownExisting
+                    ? `<p>Choose which catch return to edit, or add one for a guest.</p>`
+                    : `<p>Enter your own catch return first, before adding one for a guest.</p>`),
             listItems,
             buttons: [{ label: 'Cancel', value: false, style: 'background:#95a5a6;' }]
         });
@@ -849,8 +858,6 @@
             beatSelect.value = reservation.beat;
             beatSelect.disabled = true;
             categoryLabel.textContent = 'Beat';
-            guestWrapper.style.display = 'flex';
-            dnfWrapperEl.style.display = 'block';
             divertNoticeEl.style.display = 'none';
 
             if (resolved) {
@@ -861,35 +868,56 @@
                 // different record, go back to the list and re-enter.
                 form.verified.disabled = true;
                 document.getElementById('verifiedLabel').textContent = 'Guest? (selected above)';
+                guestWrapper.style.display = 'flex';
+
                 const { choice, ownExisting, guestCatches } = resolved;
+                let isGuestChoice;
                 if (choice === 'member') {
                     form.verified.checked = false;
                     prefillCatchFields(ownExisting);
+                    isGuestChoice = false;
                 } else if (choice === 'new-member') {
                     form.verified.checked = false;
+                    isGuestChoice = false;
                 } else if (choice === 'new-guest') {
                     form.verified.checked = true;
                     currentGuestEditId = null;
+                    isGuestChoice = true;
                 } else {
                     const existing = guestCatches.find(g => g.id === choice);
                     form.verified.checked = true;
                     currentGuestEditId = existing.id;
                     prefillCatchFields(existing);
+                    isGuestChoice = true;
                 }
-                // The dnf change handler below unconditionally unchecks
-                // "Guest?" whenever DNF becomes checked (it assumes DNF
-                // implies a fresh member-only entry) - re-assert afterwards
-                // since we know definitively whether this is a guest record.
-                const isGuestChoice = form.verified.checked;
+
+                // Rule: a guest catch return can never be DNF (enforced
+                // server-side too - see chk_guest_dnf_mutually_exclusive).
+                // Remove the control entirely for a guest entry rather than
+                // relying on the DNF checkbox's own handler to keep "Guest?"
+                // in sync with it - that cross-wiring (DNF handler forcing
+                // "Guest?" off) is what previously let a DNF tick during a
+                // guest edit silently redirect the submission onto the
+                // member's own record instead. The handler no longer touches
+                // "Guest?" at all now (see its listener below).
+                if (isGuestChoice) {
+                    form.dnf.checked = false;
+                    dnfWrapperEl.style.display = 'none';
+                } else {
+                    dnfWrapperEl.style.display = 'block';
+                }
                 form.dnf.dispatchEvent(new Event('change'));
-                form.verified.checked = isGuestChoice;
             } else {
                 // resolved is only null here when neither the member's own
                 // record nor any guest catch exists yet - a genuinely fresh
-                // reservation with nothing submitted at all, so there's
-                // nothing to pre-fill or disambiguate. Blank form, checkbox
-                // interactive (deciding "mine vs a guest's" for this first
-                // entry is what it's for).
+                // reservation with nothing submitted at all. A guest catch
+                // can't be entered until the member's own exists (enforced
+                // server-side too), so the first-ever entry is always the
+                // member's own - hide the guest toggle rather than let it be
+                // ticked before there's anything for it to attach after.
+                guestWrapper.style.display = 'none';
+                form.verified.checked = false;
+                dnfWrapperEl.style.display = 'block';
                 form.dnf.dispatchEvent(new Event('change'));
             }
 
@@ -917,20 +945,12 @@
         }
     }
 
-    // Reachable only when the checkbox is enabled, which only happens when
-    // there was no existing-record ambiguity to resolve up front (see
-    // resolveWhichCatchReturn) - so checking it here always means "this is a
-    // brand new entry for a guest," never "switch to a different existing
-    // record." Just starts the fields fresh.
-    form.verified.addEventListener('change', function () {
-        currentGuestEditId = null;
-        if (currentMode === 'a' && this.checked) {
-            ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
-            form.dnf.checked = false;
-            form.comments.value = '';
-            form.dnf.dispatchEvent(new Event('change'));
-        }
-    });
+    // "Guest?" is never user-interactive any more: enterMode() either hides
+    // it (a genuinely fresh reservation - rule (b), member must enter their
+    // own catch first) or disables it and drives its checked state itself
+    // (an existing reservation - the choice of which record was already
+    // made in resolveWhichCatchReturn). So there's no click for a listener
+    // on it to respond to any more.
 
     // --- Generic choice-modal helper (now only used for the existing-record
     // overwrite confirmation, since reservation matching is no longer
@@ -1010,6 +1030,18 @@
         return true;
     }
 
+    // Rule (c) - marking a member's own catch return as DNF deletes any
+    // guest catch returns already logged against that reservation (see the
+    // trg_cascade_delete_guest_catches_on_dnf trigger). Surfaced here so
+    // that's disclosed before the member confirms, not a silent side effect.
+    function guestCascadeWarningHTML(reservation) {
+        const count = reservation && reservation.guest_cr_count;
+        if (!count) return '';
+        return `<div style="margin-top:8px; padding:6px 10px; background:#fdf2f2; border:1px solid #f5c6cb; border-radius:4px; color:#c0392b; font-size:0.8rem;">
+            ⚠ This will also delete ${count} guest catch${count === 1 ? '' : 'es'} already logged against this reservation.
+        </div>`;
+    }
+
     function showReviewModal() {
         const formData = new FormData(form);
         const isDnf = form.dnf.checked;
@@ -1018,6 +1050,7 @@
         if (currentMode === 'b') {
             html = `
                 <strong>Diverted from:</strong> ${currentReservation.beat} on ${currentReservation.reservation_date} — will be marked <strong>Did Not Fish</strong><br>
+                ${guestCascadeWarningHTML(currentReservation)}
                 <strong>Actually fished:</strong> ${formData.get('category')}<br>
                 <hr style="border:0; border-top:1px dashed #ccc;">
                 <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
@@ -1035,6 +1068,7 @@
                 <strong>Beat:</strong> ${beat}<br>
                 <hr style="border:0; border-top:1px dashed #ccc;">
                 <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
+                ${currentMode === 'a' ? guestCascadeWarningHTML(currentReservation) : ''}
             ` : `
                 <strong>Member:</strong> ${loggedInSurname}<br>
                 <strong>Date:</strong> ${catchDate}<br>
@@ -1162,9 +1196,15 @@
         dnfRow.style.backgroundColor = isDnf ? '#fff3cd' : '';
         dnfRow.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
 
+        // Deliberately doesn't touch "Guest?" any more. It used to reset it
+        // to false here, which desynced it from currentGuestEditId (owned by
+        // enterMode's resolved choice, not by this checkbox) - that was the
+        // root cause of a DNF tick during a guest edit silently redirecting
+        // the submission onto the member's own record. A guest entry can't
+        // reach dnf=true at all now (enterMode hides this control for one),
+        // so there's nothing left for this handler to reconcile.
         if (isDnf) {
             ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
-            form.verified.checked = false;
             // comments intentionally not cleared — may be useful context for a DNF entry
         }
     });
