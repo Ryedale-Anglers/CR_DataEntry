@@ -160,9 +160,9 @@ def generate_report_sections(conn):
 
     final_report_content = f"""
     #pagebreak()
-    #include "member_submissions.typ"
-    #pagebreak()
     #include "aged_debt_analysis.typ"
+    #pagebreak()
+    #include "member_submissions.typ"
     #text(weight: "regular", 1em, fill: blue)[-- End of Report --]
     """
     with open("sec_catch_report_operational_sections.typ", "w", encoding="utf-8") as f:

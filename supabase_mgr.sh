@@ -16,9 +16,10 @@ show_menu() {
     echo "4) Restart Instance"
     echo "5) Upgrade Supabase CLI (brew)"
     echo "6) List Available Backups"
-    echo "7) Exit"
+    echo "7) Sync Production Data -> Local"
+    echo "8) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-7]: "
+    echo -n "Choose an option [1-8]: "
 }
 
 while true; do
@@ -61,6 +62,11 @@ while true; do
             ls -lh /var/backups/cr-dataentry/
             ;;
         7)
+            echo "🔄 Syncing production data to local..."
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            "$SCRIPT_DIR/sync_prod_to_local.sh"
+            ;;
+        8)
             echo "👋 Goodbye!"
             exit 0
             ;;
