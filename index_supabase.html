@@ -793,21 +793,24 @@
             listItems.push({ value: g.id, label: `Guest Catch — ${describeCatchRecord(g, g.submitted_at)}` });
         });
         // Rule: a guest catch can't be added until the member's own catch
-        // return exists for this reservation (enforced server-side too, in
-        // submit_catch_return_for_reservation) - only offer the option once
-        // it does. Any guest catches already logged (above) stay editable
-        // regardless, in case they predate this rule.
-        if (ownExisting) {
+        // return exists for this reservation and isn't Did Not Fish
+        // (enforced server-side too, in submit_catch_return_for_reservation) -
+        // only offer the option once it does. Any guest catches already
+        // logged (above) stay editable regardless, in case they predate this rule.
+        const canAddGuest = ownExisting && !ownExisting.dnf;
+        if (canAddGuest) {
             listItems.push({ value: 'new-guest', label: '+ Add a New Guest Catch' });
         }
 
         const choice = await showChoice({
             title: 'Which Catch Return?',
             bodyHTML: guestCatches.length > 0
-                ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit${ownExisting ? ', or add another' : ''}.</p>`
-                : (ownExisting
+                ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit${canAddGuest ? ', or add another' : ''}.</p>`
+                : (canAddGuest
                     ? `<p>Choose which catch return to edit, or add one for a guest.</p>`
-                    : `<p>Enter your own catch return first, before adding one for a guest.</p>`),
+                    : (ownExisting
+                        ? `<p>Your catch return is marked Did Not Fish, so a guest catch can't be added. Edit it below if you did fish.</p>`
+                        : `<p>Enter your own catch return first, before adding one for a guest.</p>`)),
             listItems,
             buttons: [{ label: 'Cancel', value: false, style: 'background:#95a5a6;' }]
         });
@@ -851,6 +854,12 @@
         const dnfWrapperEl = document.getElementById('dnfWrapper');
         const divertNoticeEl = document.getElementById('divertNotice');
         const categoryLabel = document.getElementById('categoryLabel');
+
+        // "Fished a different beat" can't be the reserved beat itself
+        // (rejected server-side too) - disable that option in mode 'b' only.
+        Array.from(beatSelect.options).forEach(opt => {
+            opt.disabled = mode === 'b' && opt.value === reservation.beat;
+        });
 
         if (mode === 'a') {
             dateField.value = reservation.reservation_date;
@@ -933,9 +942,12 @@
             divertNoticeEl.innerHTML = `Marking <strong>${reservation.beat}</strong> on <strong>${reservation.reservation_date}</strong> as Did Not Fish — enter what you actually fished below.`;
 
         } else {
-            // 'c' - no valid reservation showing
+            // 'c' - no valid reservation showing. No future dates (the
+            // server also rejects dates outside the season).
             dateField.value = '';
             dateField.disabled = false;
+            const now = new Date();
+            dateField.max = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             beatSelect.value = '';
             beatSelect.disabled = false;
             categoryLabel.textContent = 'Beat';
