@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 import shutil
 import io
@@ -7,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import date, datetime
 
 # Load environment variables (for your DB password/connection string)
 load_dotenv()
@@ -24,6 +25,14 @@ IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
 # and makes it year agnostic so you don't have to update it every year.
 thisYear = datetime.now().year
 DATE_STR = f"{thisYear}-04-01 to Today"
+# The date range the download covers - reconciliation only deletes within it.
+SEASON_START = date(thisYear, 4, 1)
+
+# Safeguard: refuse to delete more than this many reservations in one run.
+# Real cancellations between daily runs are a handful; more than this means a
+# partial/bad download. Set ETL_MAX_DELETIONS in the environment to allow a
+# larger, deliberate clean-up for a single run.
+MAX_DELETIONS = int(os.getenv('ETL_MAX_DELETIONS', '10'))
 
 # Payload built from your screenshots
 PAYLOAD = {
@@ -115,6 +124,15 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
     from the download itself (name != 'Synthetic'): rows no longer present in
     the fresh download are deleted (covers cancellations/changes), and rows not
     yet staged are inserted.
+
+    Safeguards, since a bad download would otherwise delete real reservations
+    (any failure raises, so the whole run rolls back and exits non-zero):
+      1. A download with no usable rows is refused while reservations already
+         exist for the season.
+      2. Only rows dated within the download's range (SEASON_START to today)
+         are compared and can be deleted - earlier years and future dates are
+         never touched.
+      3. More than MAX_DELETIONS deletions in one run is refused.
     """
     try:
         # Wrap bytes in a stream so Pandas can read it like a file
@@ -125,24 +143,57 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
         print(f"Fetched {len(df_reservations)} records reservations CSV.")
 
         private_table = f"private.{table_name}"
+        window_end = date.today()
 
         target_cols = ["date", "resource", "name"]
         df_final = df_reservations[target_cols].copy()
         df_final['date'] = pd.to_datetime(df_final['date'], errors='coerce').dt.date
+        unusable = df_final['date'].isna() | df_final['resource'].isna() | df_final['name'].isna()
+        if unusable.any():
+            print(f"⚠️  Ignoring {unusable.sum()} row(s) with a missing/unreadable date, resource or name.")
+        df_final = df_final[~unusable]
 
         existing = pd.read_sql(
-            text(f"SELECT date, resource, name FROM {private_table} WHERE name != 'Synthetic'"),
-            conn
+            text(f"""
+                SELECT date, resource, name FROM {private_table}
+                WHERE name != 'Synthetic'
+                  AND date BETWEEN :window_start AND :window_end
+            """),
+            conn,
+            params={"window_start": SEASON_START, "window_end": window_end}
         )
+
+        # Safeguard 1: an empty download while the season already has
+        # reservations means the download failed, not that every booking
+        # was cancelled.
+        if df_final.empty and not existing.empty:
+            raise RuntimeError(
+                f"Download has no usable reservations but {len(existing)} exist for "
+                f"{SEASON_START} to {window_end} - refusing to delete them all."
+            )
 
         fresh_keys = set(df_final[['date', 'resource', 'name']].itertuples(index=False, name=None))
         existing_keys = set(existing[['date', 'resource', 'name']].itertuples(index=False, name=None))
 
+        # Safeguard 2: existing_keys only holds rows inside the download's date
+        # range, so nothing outside it can be selected for deletion.
         to_delete = existing_keys - fresh_keys
         to_insert_keys = fresh_keys - existing_keys
 
+        # Safeguard 3: cap deletions per run.
+        if len(to_delete) > MAX_DELETIONS:
+            for d, r, n in sorted(to_delete):
+                print(f"   would delete: {d} | {r} | {n}")
+            raise RuntimeError(
+                f"{len(to_delete)} reservations would be deleted (limit {MAX_DELETIONS}) - "
+                f"likely a partial download. Nothing changed. Re-run with ETL_MAX_DELETIONS "
+                f"set higher if these really are cancellations."
+            )
+
         if to_delete:
             print(f"Reconciling {private_table}: removing {len(to_delete)} cancelled/changed reservation(s)...")
+            for d, r, n in sorted(to_delete):
+                print(f"   deleting: {d} | {r} | {n}")
             conn.execute(
                 text(f"""
                     DELETE FROM {private_table}
@@ -222,23 +273,29 @@ def match_and_update_reservation_names(conn):
                 print(f"❌ Name Matching Error: No match found in members table for name: {full_name} (ID: {row_id})")
 
         if updates:
-            # A Synthetic placeholder may already occupy the exact (date, resource,
-            # cr_name) slot this real reservation is about to take, if a catch
-            # return was submitted for it before this download synced (see
-            # insert_catch_return in Supabase). The real reservation supersedes
-            # the placeholder, so remove it first - otherwise the UPDATE below
-            # violates uq_priv_reservation_date_cr_name and rolls back this
-            # entire run.
+            # A Synthetic placeholder may already exist for the beat this real
+            # reservation is for, if a catch return was submitted before this
+            # download synced (see submit_catch_return_no_reservation /
+            # submit_catch_return_different_beat in Supabase). The real
+            # reservation supersedes the placeholder, so remove it first.
+            # Matched on beat_id, not resource: on the exact same resource the
+            # UPDATE below would violate uq_priv_reservation_date_cr_name and
+            # roll back this entire run, and on the other resource of a shared
+            # beat (17. Fishing Hut / 18. Railway Bridge) it would leave a
+            # duplicate reservation for the same beat/date.
             conn.execute(
                 text("""
                     DELETE FROM private.reservations_confirmed_staging synth
                     WHERE synth.name = 'Synthetic'
                       AND synth.cr_name = :cr_name
                       AND EXISTS (
-                          SELECT 1 FROM private.reservations_confirmed_staging real_row
+                          SELECT 1
+                          FROM private.reservations_confirmed_staging real_row
+                          INNER JOIN private.reservation_beats rb_real ON rb_real.beat = real_row.resource
+                          INNER JOIN private.reservation_beats rb_synth ON rb_synth.beat = synth.resource
                           WHERE real_row.id = :id
                             AND real_row.date = synth.date
-                            AND real_row.resource = synth.resource
+                            AND rb_real.beat_id = rb_synth.beat_id
                       )
                 """),
                 updates
@@ -584,7 +641,14 @@ if __name__ == "__main__":
         datestamp = datetime.now().strftime("%Y-%m-%d: %H:%M")
         print(" ")
         print("===============================================")
-        print(f"Starting ETL process for Catch Returns and Reservations at {datestamp}")
+        print(f"Starting ETL process for Reservations at {datestamp}")
+
+        # Before 1 April the download range ("<year>-04-01 to Today") runs
+        # backwards, so there is nothing to sync yet.
+        if date.today() < SEASON_START:
+            print(f"Season starts {SEASON_START} - nothing to sync yet.")
+            sys.exit(0)
+
         # 1. Download directly into a variable (bytes)
         downloaded_data = run_reservations_download()
         
@@ -606,6 +670,10 @@ if __name__ == "__main__":
                 print("✅ All steps completed.")
         else:
             print("No data received from download.")
+            sys.exit(1)
 
     except Exception as e:
         print(f"❌ Transaction Failed! Error: {e}")
+        # Non-zero exit so a scheduled run (GitHub Actions / systemd) reports
+        # the failure instead of showing success.
+        sys.exit(1)
