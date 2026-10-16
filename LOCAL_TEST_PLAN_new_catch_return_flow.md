@@ -34,7 +34,8 @@ DB=postgresql://postgres:postgres@localhost:54322/postgres
 for f in supabase/.migrations_on_hold/20260929120000_enforce_guest_dnf_rules_and_cascade_delete.sql \
          supabase/migrations/20261015100000_shared_beat_synthetic_and_date_beat_validation.sql \
          supabase/migrations/20261015110000_revoke_anon_season_history_and_exact_surname_match.sql \
-         supabase/migrations/20261015120000_create_start_new_season.sql; do
+         supabase/migrations/20261015120000_create_start_new_season.sql \
+         supabase/migrations/20261016100000_season_history_shared_beat_and_season_end.sql; do
   psql "$DB" -v ON_ERROR_STOP=1 -q -f "$f" && echo "applied $f"
 done
 ```
@@ -120,33 +121,35 @@ ORDER BY date, resource;
 Work through these in order. They all use the **1 Sep Abbey** reservation except A10.
 
 **A1. Own catch on a fresh reservation.** Select 1 Sep Abbey → **Enter Catch Return**.
-- Expect: no "Which Catch Return?" chooser. Date and beat are locked, **Guest?** is hidden, and **Did Not Fish** is shown.
+- Expect: no "Which Catch Return?" chooser. The heading reads **Enter Your Catch Return** and the catch section **Your Catch Return**. Date and beat are locked, there's no Guest? box, and **Did Not Fish** is shown.
 - Enter BT 2 → Submit → review → Confirm.
 - Expect: the row reads "Catch Return Logged" and the button label becomes "Edit Your / Add Guest Catch Return".
 - Check state: one row, guest false, dnf false, bt 2.
 
 **A2. Edit own catch.** Select 1 Sep → the chooser lists "Your Catch Return — submitted … BT: 2 …" and "+ Add a New Guest Catch". Pick your catch return.
-- Expect: the form is pre-filled, and Guest? shows as "Guest? (selected above)", unticked and locked.
+- Expect: the heading reads **Edit Your Catch Return**, the form is pre-filled, there's no guest notice and no Guest? box.
 - Change BT to 3 → Confirm.
 - Check state: still **one** non-guest row, bt 3.
 
 **A3. Add a guest catch.** Select 1 Sep → **+ Add a New Guest Catch**.
-- Expect: Guest? is ticked and locked, and Did Not Fish is **hidden**.
-- Enter BT 1 → the review shows "Guest: Yes" → Confirm.
+- Expect: the heading reads **Add Guest Catch Return**, with the yellow notice "Adding a catch return for **your guest** on Abbey, 2026-09-01. Your own catch return is not changed." The catch section reads **Guest's Catch**, the button **Submit Guest Catch Return**, and Did Not Fish is **hidden**.
+- Enter BT 1 → the review is titled **Review Guest Catch Return** and shows "Guest: Yes" → Confirm.
 - Expect: the row shows "1 Guest Catch Logged".
 
 **A4. Edit the guest catch.** Select 1 Sep → the chooser lists the guest catch by its submission time. Pick it.
-- Expect: pre-filled with BT 1. Change BT to 4 → the review shows "Guest: Yes (editing previous entry)" → Confirm.
+- Expect: the heading reads **Edit Guest Catch Return**, the notice names the guest catch's submission time, and the form is pre-filled with BT 1. Change BT to 4 → the review shows "Guest: Yes (editing previous entry)" → Confirm.
 - Check state: still one guest row, **same id** as before, bt 4.
 
 **A5. Second guest.** Repeat A3 with BT 5.
 - Expect: "2 Guest Catches Logged".
 
-**A6. Host marks DNF, which deletes the guest catches.** Select 1 Sep → your catch return → tick **Did Not Fish**.
-- Expect: the catch and observations sections collapse. The review shows **"⚠ This will also delete 2 guest catches…"**.
+**A6. Host marks DNF, which deletes the guest catches.** Select 1 Sep → your catch return → type "test comment" in Observations.
+- Tick **Did Not Fish**, then untick it. Expect: the catch numbers come back as they were (BT 3), not zeros.
+- Tick **Did Not Fish** again. Expect: the catch section collapses, but **Observations stays visible** with "test comment" in it.
+- Submit. Expect: the review shows **"⚠ This will also delete 2 guest catches…"** and "Observations: test comment".
 - Confirm.
 - Expect: the row reads "Did Not Fish Logged" and has no guest badge.
-- Check state: the own row has dnf true and bt 0, and there are **no** guest rows.
+- Check state: the own row has dnf true, bt 0 and comments "test comment", and there are **no** guest rows.
 
 **A7. No guests after a host DNF.** Select 1 Sep.
 - Expect: the chooser offers **only** "Your Catch Return — … Did Not Fish", with the message "Your catch return is marked Did Not Fish, so a guest catch can't be added…". There is no "+ Add a New Guest Catch".
@@ -158,13 +161,14 @@ Work through these in order. They all use the **1 Sep Abbey** reservation except
 - Expect: you're still on the list with nothing changed. Also check **← Back to Reservations** from the form.
 
 **A10. DNF on a fresh reservation.** Select 3 Sep Fairyland → tick Did Not Fish.
-- Expect: the review has **no** guest-deletion warning. Confirm.
+- Expect: the Observations placeholder reads "Reason for not fishing (optional)". Type "river in flood".
+- Expect: the review has **no** guest-deletion warning and shows "Observations: river in flood". Confirm.
 - Expect: the row reads "Did Not Fish Logged".
 
 ## 5. Mode b: Fished a Different Beat
 
 **B1. Normal divert.** Select 2 Sep Mill Weir → **Fished a Different Beat**.
-- Expect: the notice reads "Marking Mill Weir on 2026-09-02 as Did Not Fish…". The beat list has **Mill Weir greyed out**, and Did Not Fish and Guest? are hidden.
+- Expect: the heading reads **Fished a Different Beat** and the notice "Marking Mill Weir on 2026-09-02 as Did Not Fish…". The beat list has **Mill Weir greyed out**, and Did Not Fish and Guest? are hidden.
 - Pick Duncombe Park, BT 2 → the review shows "Diverted from: Mill Weir … will be marked Did Not Fish" → Confirm.
 - Check state:
   - Mill Weir 2 Sep: dnf true, comment "Auto-marked DNF: member fished a different beat".
@@ -178,7 +182,7 @@ Work through these in order. They all use the **1 Sep Abbey** reservation except
 
 ## 6. Mode c: Reservation Not Listed
 
-**C1. Future dates blocked.** In the date picker, try tomorrow's date.
+**C1. Future dates blocked.** Expect the heading **Reservation Not Listed**. In the date picker, try tomorrow's date.
 - Expect: it can't be picked, or Submit is blocked with "Value must be … or earlier".
 
 **C2. Out-of-season dates rejected.** Use 2026-10-05, Abbey, BT 1 → Confirm.
@@ -208,6 +212,7 @@ UPDATE private.members SET email_address = '<your address>' WHERE cr_name = 'ZZ 
 **E1.** Click **Email My Returns YTD**.
 - Expect: "Success! Your catch history has been emailed to you", and an email listing ZZ Test's reservations and catches from sections 4–6.
 - This also confirms the email still works now that the history function is restricted to the service role.
+- Check the email lists 5 Sep (booked on both 17 and 18) **once** per catch return, and nothing after 30 September.
 - If you get a connection error, the local edge runtime may not have the Resend key. Run `supabase functions serve --env-file supabase/functions/.env` in another terminal and try again.
 
 ## 8. Server rules the page no longer lets you reach (SQL)
