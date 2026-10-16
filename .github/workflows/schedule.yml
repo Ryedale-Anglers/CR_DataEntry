@@ -26,13 +26,15 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      # Reservations only: catch returns are entered directly through
+      # index.html. Reconciles reservations against the ibookfishing download
+      # (never truncates) and fails the run if the download looks wrong.
       - name: Run ETL Script
         env:
           # This maps the GitHub Secret to an Environment Variable the script can see
           CLOUD_DB_URL: ${{ secrets.CLOUD_DB_URL }}
-          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
           IBOOKFISHING_REPORT_PAGE_URL: ${{ secrets.IBOOKFISHING_REPORT_PAGE_URL }}
           IBOOKFISHING_REPORT_SHSEC: ${{ secrets.IBOOKFISHING_REPORT_SHSEC }}
           IBOOKFISHING_REPORT_CALENDAR_ID: ${{ secrets.IBOOKFISHING_REPORT_CALENDAR_ID }}
           IBOOKFISHING_REPORT_S2: ${{ secrets.IBOOKFISHING_REPORT_S2 }}
-        run: python etl_catch_returns_and_reservations_to_supabase.py
+        run: python etl_reservations_only_to_supabase.py

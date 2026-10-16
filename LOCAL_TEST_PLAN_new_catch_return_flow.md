@@ -2,7 +2,7 @@
 
 Final local checks before the production cutover, in which:
 
-- `index_supabase.html` replaces `index.html`;
+- the new form (developed as `index_supabase.html`) replaces `index.html`; `index_supabase.html` now just redirects to it;
 - `etl_reservations_only_to_supabase.py` replaces `etl_catch_returns_and_reservations_to_supabase.py` in the GitHub Action;
 - the held migration `20260929120000` goes to production.
 
@@ -78,7 +78,7 @@ INSERT INTO private.reservations_confirmed_staging (date, resource, name, cr_nam
 
 ```bash
 cd /home/brian/Documents/github/CR_DataEntry && python3 -m http.server 8000
-# browse to http://localhost:8000/index_supabase.html
+# browse to http://localhost:8000/index.html
 ```
 
 Never open the file directly (`file://…`). With no hostname, the page connects to **production**. The badge under the club name must read **LOCAL** (yellow) on every screen.
