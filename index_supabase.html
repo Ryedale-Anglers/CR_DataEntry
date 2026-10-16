@@ -383,8 +383,10 @@
     <span id="envBadgeData" class="env-badge"></span>
     <button type="button" id="backToListBtn" class="link-btn">&larr; Back to Reservations</button>
     <form id="dataForm">
-        <h2 style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
+        <h2 id="formTitle" style="color: #666; font-size: 0.95rem; margin-top: -5px;">Catch Return Data Entry</h2>
 
+        <!-- Notice under the heading: the "fished a different beat" explanation
+             (mode 'b') or the guest catch explanation (mode 'a', guest). -->
         <div id="divertNotice" class="divert-notice" style="display:none;"></div>
 
         <div class="row">
@@ -403,7 +405,7 @@
             </div>
         </div>
 
-        <!-- DNF row: when checked, collapses catch and observations sections -->
+        <!-- DNF row: when checked, collapses the catch section (observations stay) -->
         <div id="dnfWrapper" style="margin-bottom: 10px;">
             <div id="dnfRow" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:4px; border:1px solid #e0e0e0; cursor:pointer;" onclick="document.getElementById('dnf').click()">
                 <input type="checkbox" id="dnf" name="dnf" onclick="event.stopPropagation()" style="width:20px; height:20px; cursor:pointer; margin:0; flex-shrink:0;">
@@ -412,7 +414,7 @@
         </div>
 
         <div id="catchSection">
-        <h2>Your Catch Return</h2>
+        <h2 id="catchSectionTitle">Your Catch Return</h2>
         <div class="numeric-grid">
             <div>
                 <label>BT C&amp;R</label>
@@ -456,7 +458,7 @@
 <!-- Confirmation modal -->
 <div id="confirmModal" style="display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
     <div style="background:white; padding:20px; border-radius:8px; max-width:350px; width:90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
-        <h3 style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;">Review Entry</h3>
+        <h3 id="reviewTitle" style="margin-top:0; color:#1a365d; border-bottom:1px solid #ccc; padding-bottom:10px; font-size: 1.1rem;">Review Entry</h3>
         <div id="summaryContent" style="font-size:0.85rem; line-height:1.4; margin:10px 0;"></div>
         <div style="display:flex; gap:10px; margin-top:15px;">
             <button id="finalConfirm" style="flex:2; background:#27ae60; padding:10px;">Confirm</button>
@@ -819,6 +821,23 @@
         return { choice, ownExisting, guestCatches };
     }
 
+    // The form heading, catch section heading, submit button and review title
+    // name the action being taken, so a guest entry can't be mistaken for the
+    // member's own.
+    function setFormLabels({ title, section = 'Your Catch Return', submit = 'Submit Record', review = 'Review Entry' }) {
+        document.getElementById('formTitle').textContent = title;
+        document.getElementById('catchSectionTitle').textContent = section;
+        document.getElementById('submitBtn').textContent = submit;
+        document.getElementById('reviewTitle').textContent = review;
+    }
+
+    const GUEST_LABELS = title => ({
+        title,
+        section: "Guest's Catch",
+        submit: 'Submit Guest Catch Return',
+        review: 'Review Guest Catch Return'
+    });
+
     async function enterMode(mode, reservation) {
         let resolved = null;
         if (mode === 'a' && (reservation.cr_exists || reservation.guest_cr_count > 0)) {
@@ -840,7 +859,8 @@
         form.verified.disabled = false;
         document.getElementById('verifiedLabel').textContent = 'Guest?';
         form.comments.value = '';
-        // Baseline reset for every mode - catchSection/observationsSection
+        numbersBeforeDnf = null;
+        // Baseline reset for every mode - catchSection
         // visibility only otherwise changes via this event, so without an
         // unconditional dispatch here, sections hidden by a DNF in a
         // previous mode 'a' visit would incorrectly stay hidden after
@@ -871,33 +891,42 @@
 
             if (resolved) {
                 // The choice of *which* record already happened up front in
-                // resolveWhichCatchReturn() - the checkbox here just reflects
-                // that choice and is locked, so it can't be misread as "flip
-                // this record into a different one" mid-edit. To pick a
-                // different record, go back to the list and re-enter.
+                // resolveWhichCatchReturn(). The "Guest?" checkbox still
+                // carries that choice to the submit call, but is hidden - the
+                // heading, notice and section title say whose catch this is,
+                // and to pick a different record the member goes back to the
+                // list and re-enters.
                 form.verified.disabled = true;
-                document.getElementById('verifiedLabel').textContent = 'Guest? (selected above)';
-                guestWrapper.style.display = 'flex';
+                guestWrapper.style.display = 'none';
 
                 const { choice, ownExisting, guestCatches } = resolved;
+                const where = `<strong>${reservation.beat}, ${reservation.reservation_date}</strong>`;
                 let isGuestChoice;
                 if (choice === 'member') {
                     form.verified.checked = false;
                     prefillCatchFields(ownExisting);
                     isGuestChoice = false;
+                    setFormLabels({ title: 'Edit Your Catch Return' });
                 } else if (choice === 'new-member') {
                     form.verified.checked = false;
                     isGuestChoice = false;
+                    setFormLabels({ title: 'Enter Your Catch Return' });
                 } else if (choice === 'new-guest') {
                     form.verified.checked = true;
                     currentGuestEditId = null;
                     isGuestChoice = true;
+                    setFormLabels(GUEST_LABELS('Add Guest Catch Return'));
+                    divertNoticeEl.innerHTML = `Adding a catch return for <strong>your guest</strong> on ${where}. Your own catch return is not changed.`;
+                    divertNoticeEl.style.display = 'block';
                 } else {
                     const existing = guestCatches.find(g => g.id === choice);
                     form.verified.checked = true;
                     currentGuestEditId = existing.id;
                     prefillCatchFields(existing);
                     isGuestChoice = true;
+                    setFormLabels(GUEST_LABELS('Edit Guest Catch Return'));
+                    divertNoticeEl.innerHTML = `Editing a <strong>guest</strong> catch return (submitted ${formatSubmittedAt(existing.submitted_at)}) on ${where}. Your own catch return is not changed.`;
+                    divertNoticeEl.style.display = 'block';
                 }
 
                 // Rule: a guest catch return can never be DNF (enforced
@@ -928,9 +957,11 @@
                 form.verified.checked = false;
                 dnfWrapperEl.style.display = 'block';
                 form.dnf.dispatchEvent(new Event('change'));
+                setFormLabels({ title: 'Enter Your Catch Return' });
             }
 
         } else if (mode === 'b') {
+            setFormLabels({ title: 'Fished a Different Beat' });
             dateField.value = reservation.reservation_date;
             dateField.disabled = true;
             beatSelect.value = '';
@@ -944,6 +975,7 @@
         } else {
             // 'c' - no valid reservation showing. No future dates (the
             // server also rejects dates outside the season).
+            setFormLabels({ title: 'Reservation Not Listed' });
             dateField.value = '';
             dateField.disabled = false;
             const now = new Date();
@@ -957,12 +989,11 @@
         }
     }
 
-    // "Guest?" is never user-interactive any more: enterMode() either hides
-    // it (a genuinely fresh reservation - rule (b), member must enter their
-    // own catch first) or disables it and drives its checked state itself
-    // (an existing reservation - the choice of which record was already
-    // made in resolveWhichCatchReturn). So there's no click for a listener
-    // on it to respond to any more.
+    // "Guest?" is never user-interactive any more: enterMode() always hides
+    // it, and drives its checked state itself from the choice made in
+    // resolveWhichCatchReturn() (unticked on a genuinely fresh reservation -
+    // rule (b), member must enter their own catch first). So there's no click
+    // for a listener on it to respond to any more.
 
     // --- Generic choice-modal helper (now only used for the existing-record
     // overwrite confirmation, since reservation matching is no longer
@@ -1081,6 +1112,8 @@
                 <hr style="border:0; border-top:1px dashed #ccc;">
                 <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
                 ${currentMode === 'a' ? guestCascadeWarningHTML(currentReservation) : ''}
+                <hr style="border:0; border-top:1px dashed #ccc;">
+                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
             ` : `
                 <strong>Member:</strong> ${loggedInSurname}<br>
                 <strong>Date:</strong> ${catchDate}<br>
@@ -1196,15 +1229,26 @@
         }
     };
 
-    // --- DNF toggle: collapse catch + observations sections ---
+    // --- DNF toggle: collapse the catch section ---
+    const CATCH_FIELDS = ['v1', 'v2', 'v3', 'v4', 'v5'];
+    // Catch numbers as they were when DNF was ticked, restored on untick.
+    // Cleared by enterMode() so values never carry over between entries.
+    let numbersBeforeDnf = null;
+
     document.getElementById('dnf').addEventListener('change', function () {
         const isDnf = this.checked;
         const catchSection = document.getElementById('catchSection');
         const observationsSection = document.getElementById('observationsSection');
         const dnfRow = document.getElementById('dnfRow');
 
+        // Observations stay visible for a DNF: any comments already on the
+        // record are kept and submitted with it, so the member must be able
+        // to see, edit or clear them - and they can explain the DNF.
         catchSection.style.display = isDnf ? 'none' : 'block';
-        observationsSection.style.display = isDnf ? 'none' : 'flex';
+        observationsSection.style.display = 'flex';
+        form.comments.placeholder = isDnf
+            ? 'Reason for not fishing (optional)'
+            : 'Conditions, flies, etc...';
         dnfRow.style.backgroundColor = isDnf ? '#fff3cd' : '';
         dnfRow.style.borderColor = isDnf ? '#ffc107' : '#e0e0e0';
 
@@ -1215,9 +1259,14 @@
         // the submission onto the member's own record. A guest entry can't
         // reach dnf=true at all now (enterMode hides this control for one),
         // so there's nothing left for this handler to reconcile.
+        // Ticking DNF zeroes the catch numbers; unticking puts back what was
+        // there, so an accidental tick-untick doesn't silently leave zeros.
         if (isDnf) {
-            ['v1', 'v2', 'v3', 'v4', 'v5'].forEach(n => { form[n].value = 0; });
-            // comments intentionally not cleared — may be useful context for a DNF entry
+            numbersBeforeDnf = CATCH_FIELDS.map(n => form[n].value);
+            CATCH_FIELDS.forEach(n => { form[n].value = 0; });
+        } else if (numbersBeforeDnf) {
+            CATCH_FIELDS.forEach((n, i) => { form[n].value = numbersBeforeDnf[i]; });
+            numbersBeforeDnf = null;
         }
     });
 
