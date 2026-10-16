@@ -44,27 +44,9 @@ The backup is in `~/Documents/github/backups/CR_DataEntry_20261016/`: a mirror c
    git push origin Develop
    ```
    `main` still holds the old form and old ETL, so nothing changes for members yet.
-4. **Re-add all six Actions secrets.** `GOOGLE_SHEETS_ID` is still needed for the old ETL's final run. The `CLOUD_DB_URL` secret takes the **pooler** address, because GitHub's runners have no IPv6. This sets them from `.env` without showing any value:
+4. **Re-add all six Actions secrets.** `GOOGLE_SHEETS_ID` is still needed for the old ETL's final run. The `CLOUD_DB_URL` secret takes the **pooler** address, because GitHub's runners have no IPv6. This sets them from `.env` without showing any value, then lists them:
    ```bash
-   cd ~/Documents/github/CR_DataEntry
-   venv/bin/python - <<'EOF'
-   import subprocess
-   from dotenv import dotenv_values
-   env = dotenv_values('.env')
-   R = 'Ryedale-Anglers/CR_DataEntry'
-   secrets = {  # secret name: .env key
-       'CLOUD_DB_URL': 'CLOUD_DB_URL_POOLER',
-       'GOOGLE_SHEETS_ID': 'GOOGLE_SHEETS_ID',
-       'IBOOKFISHING_REPORT_PAGE_URL': 'IBOOKFISHING_REPORT_PAGE_URL',
-       'IBOOKFISHING_REPORT_SHSEC': 'IBOOKFISHING_REPORT_SHSEC',
-       'IBOOKFISHING_REPORT_CALENDAR_ID': 'IBOOKFISHING_REPORT_CALENDAR_ID',
-       'IBOOKFISHING_REPORT_S2': 'IBOOKFISHING_REPORT_S2',
-   }
-   for name, key in secrets.items():
-       subprocess.run(['gh', 'secret', 'set', name, '-R', R], input=env[key], text=True, check=True)
-       print('set', name)
-   EOF
-   gh secret list -R Ryedale-Anglers/CR_DataEntry
+   cd ~/Documents/github/CR_DataEntry && venv/bin/python scripts/set_github_secrets.py
    ```
    To add them by hand instead: Settings → Secrets and variables → Actions → **New repository secret**, once for each of the six.
 5. **Turn Pages back on:** Settings → **Pages** → Build and deployment → Source: **Deploy from a branch** → Branch **main**, folder **/ (root)** → **Save**. After a minute or two it shows "Your site is live at …".
