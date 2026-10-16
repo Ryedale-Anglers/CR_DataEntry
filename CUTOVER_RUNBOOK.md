@@ -20,8 +20,23 @@ Planned for Saturday 17 October 2026, before 12:00.
 
 The backup is in `~/Documents/github/backups/CR_DataEntry_20261016/`: a mirror clone, `pull_requests.json` and `settings.txt`. It **contains the club password**, so keep it private and never push it.
 
-1. **Delete** `Ryedale-Anglers/CR_DataEntry`: Settings → General → Danger Zone → Delete this repository.
-2. **Create** a new repository under Ryedale-Anglers named `CR_DataEntry`. Make it **Public**, with **no** README, .gitignore or licence.
+1. **Delete** `Ryedale-Anglers/CR_DataEntry`.
+   - First check no workflow run is in progress on the Actions tab.
+   - Go to <https://github.com/Ryedale-Anglers/CR_DataEntry/settings>, stay on **General**, and scroll to the red **Danger Zone** at the bottom.
+   - Click **Delete this repository**, then:
+     - click **I want to delete this repository**;
+     - click **I have read and understand these effects**;
+     - type `Ryedale-Anglers/CR_DataEntry` and click **Delete this repository**.
+   - GitHub may ask you to confirm your identity (password, 2FA or passkey).
+   - Deleting needs owner or admin rights in the organisation. If the button is missing, you don't have them.
+   - The site stops working until step 5 below.
+2. **Create** the empty repository.
+   - Go to <https://github.com/new> (or **+** → **New repository**) and fill in:
+     - **Owner:** **Ryedale-Anglers** (not your personal account);
+     - **Name:** `CR_DataEntry` (exact capitalisation);
+     - **Visibility:** **Public** (Pages needs it on the free plan);
+     - **Template:** none; **README:** off; **.gitignore:** None; **License:** None. The repo must be completely empty.
+   - Click **Create repository**, and ignore the "Quick setup" instructions.
 3. **Push both branches** (`main` first, so it becomes the default branch):
    ```bash
    cd ~/Documents/github/CR_DataEntry
@@ -51,8 +66,9 @@ The backup is in `~/Documents/github/backups/CR_DataEntry_20261016/`: a mirror c
    EOF
    gh secret list -R Ryedale-Anglers/CR_DataEntry
    ```
-5. **Turn Pages back on:** Settings → Pages → Build and deployment → Deploy from a branch → `main`, `/ (root)` → Save.
-6. **Check the Action works:** Actions → Nightly ETL Job → Run workflow (branch `main`). This is still the old ETL, so it's just a normal nightly load. It must finish green, which proves the secrets are right.
+   To add them by hand instead: Settings → Secrets and variables → Actions → **New repository secret**, once for each of the six.
+5. **Turn Pages back on:** Settings → **Pages** → Build and deployment → Source: **Deploy from a branch** → Branch **main**, folder **/ (root)** → **Save**. After a minute or two it shows "Your site is live at …".
+6. **Check the Action works:** Actions tab (if a banner asks, enable workflows) → Nightly ETL Job → Run workflow (branch `main`). This is still the old ETL, so it's just a normal nightly load. It must finish green, which proves the secrets are right.
 7. **Check the site:** <https://ryedale-anglers.github.io/CR_DataEntry/> shows the **old** form.
 
 If step 6 fails, re-check the secrets, especially that `CLOUD_DB_URL` is the pooler address. Don't start Part 2 until it's green.
