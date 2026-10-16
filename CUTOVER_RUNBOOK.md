@@ -130,6 +130,12 @@ The same web address and the same club password. They now pick a reservation fro
 - [ ] RAC_ReportProduction: merge its `Develop` into `main` (option 4 now runs the new ETL; option 7 is new). Until then, **don't use option 4 on main**.
 - [ ] Keep the local systemd ETL timer **disabled**. GitHub Actions is the only scheduler.
 
+The old ETL script (`etl_catch_returns_and_reservations_to_supabase.py`) is deleted as part of the cutover, so it can't be run by mistake. It remains in git history. To recover a copy for reference (never to run against production):
+```bash
+cd ~/Documents/github/CR_DataEntry
+git show "$(git log --diff-filter=D --format=%h -1 -- etl_catch_returns_and_reservations_to_supabase.py)^:etl_catch_returns_and_reservations_to_supabase.py" > etl_catch_returns_and_reservations_to_supabase.py
+```
+
 ---
 
 ## If something goes wrong after Step 3
