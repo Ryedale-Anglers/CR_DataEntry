@@ -35,7 +35,8 @@ for f in supabase/.migrations_on_hold/20260929120000_enforce_guest_dnf_rules_and
          supabase/migrations/20261015100000_shared_beat_synthetic_and_date_beat_validation.sql \
          supabase/migrations/20261015110000_revoke_anon_season_history_and_exact_surname_match.sql \
          supabase/migrations/20261015120000_create_start_new_season.sql \
-         supabase/migrations/20261016100000_season_history_shared_beat_and_season_end.sql; do
+         supabase/migrations/20261016100000_season_history_shared_beat_and_season_end.sql \
+         supabase/migrations/20261016110000_reservations_view_one_row_per_shared_beat.sql; do
   psql "$DB" -v ON_ERROR_STOP=1 -q -f "$f" && echo "applied $f"
 done
 ```
@@ -274,7 +275,7 @@ venv/bin/python etl_reservations_only_to_supabase.py; echo "exit code $?"
 
 ## 10. Optional: reports
 
-Run `rac_reports.py` option 2 (in-season compliance) against **local**. ZZ Test's figures should agree with the state query. Return the member to an empty state afterwards (section 11), so it doesn't skew any later local report.
+Run `rac_reports.py` option 2 (in-season compliance) against **local**. ZZ Test's figures should agree with the state query. Straight after seeding (section 1.3), ZZ Test shows **7** reservations, not 8: the 5 Sep booking on both 17 and 18 is one beat. Return the member to an empty state afterwards (section 11), so it doesn't skew any later local report.
 
 ---
 
