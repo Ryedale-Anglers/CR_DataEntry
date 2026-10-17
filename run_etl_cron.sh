@@ -1,6 +1,7 @@
 #!/bin/bash
-# Runs the reservations-only ETL (catch returns now come from index_supabase.html).
-# Scheduled via systemd timer: cr-dataentry-etl.timer (daily 13:00, Persistent=true)
+# Runs the reservations-only ETL (catch returns are entered directly through index.html).
+# Scheduled via systemd timer: cr-dataentry-etl.timer (daily 13:00, Persistent=true).
+# The GitHub Action runs the same script at 02:17; running both is safe (reconcile only).
 
 set -euo pipefail
 
