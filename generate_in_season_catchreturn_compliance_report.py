@@ -16,18 +16,22 @@ def setup():
     load_dotenv()
 
     # --- CONFIGURATION FROM ENV ---
-    SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL')
-    #SUPABASE_CONN_STRING = os.getenv('LOCAL_SUPABASE_URL')
+    # DB_TARGET (local|cloud) is normally set by rac_reports.py; defaults to
+    # cloud when run directly, since that's this script's long-standing
+    # behaviour and the systemd/manual invocations rely on that default.
+    db_target = os.getenv('DB_TARGET', 'cloud').lower()
+    if db_target not in ('local', 'cloud'):
+        raise ValueError(f"DB_TARGET must be 'local' or 'cloud', got '{db_target}'")
+    SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL' if db_target == 'cloud' else 'LOCAL_DB_URL')
     LOCAL_RAC_REPORT_REPOSITORY_PATH = os.getenv('LOCAL_RAC_REPORT_REPOSITORY_PATH')
 
-    if not SUPABASE_CONN_STRING :
-        raise ValueError("Missing environment variable. Check your .env file.")
-    
-   
+    if not SUPABASE_CONN_STRING:
+        raise ValueError(f"Missing {'CLOUD_DB_URL' if db_target == 'cloud' else 'LOCAL_DB_URL'} environment variable. Check your .env file.")
+
     # Connect to Supabase
     supabase_engine = create_engine(SUPABASE_CONN_STRING)
 
-    print(f"Connecting to... {SUPABASE_CONN_STRING}")
+    print(f"Connecting to {db_target.upper()} database...")
 
     return supabase_engine, LOCAL_RAC_REPORT_REPOSITORY_PATH
 
@@ -158,11 +162,42 @@ def generate_report_sections(conn):
     with open("aged_debt_analysis.typ", "w", encoding="utf-8") as f:
         f.write(aged_debt_table_typst)
 
+    # =================================================================
+    # MEMBERS WITH NO RESERVATIONS THIS SEASON SECTION
+    # =================================================================
+    query_no_reservations = "SELECT * FROM private.view_members_without_season_reservations"
+    df_no_reservations = pd.read_sql_query(query_no_reservations, conn)
+
+    no_reservations_typst = """
+    #text(weight: "bold", 1.2em, fill: blue)[Members With No Reservations This Season]
+    #set text(size: 0.8em)//sets the text size for the table below
+    #table(
+    columns: (1fr),
+    inset: 4pt,
+    align: (left),
+    fill: (x, y) => if y == 0 { gray.lighten(80%) },
+    stroke: 0.5pt + gray,
+    table.header(
+        [*Member Name*]
+    ),
+    """
+
+    # Populate rows
+    for _, row in df_no_reservations.iterrows():
+        no_reservations_typst += f'  [{row["member_name"]}],\n'
+
+    no_reservations_typst += ")"
+
+    with open("members_no_reservations.typ", "w", encoding="utf-8") as f:
+        f.write(no_reservations_typst)
+
     final_report_content = f"""
     #pagebreak()
     #include "aged_debt_analysis.typ"
     #pagebreak()
     #include "member_submissions.typ"
+    #pagebreak()
+    #include "members_no_reservations.typ"
     #text(weight: "regular", 1em, fill: blue)[-- End of Report --]
     """
     with open("sec_catch_report_operational_sections.typ", "w", encoding="utf-8") as f:

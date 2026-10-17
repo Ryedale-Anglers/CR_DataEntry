@@ -1,3 +1,7 @@
+# Fixed project name so local container/volume names (supabase_*_CR_DataEntry) don't
+# depend on the directory the CLI is run from.
+project_id = "CR_DataEntry"
+
 [studio]
 enabled = false
 

@@ -10,7 +10,8 @@
 -- Three rules, enforced here:
 --   a) A catch return cannot have guest = true and dnf = true together.
 --   b) A NEW guest catch return cannot be entered until the host member's
---      own (non-guest) catch return already exists for that reservation.
+--      own (non-guest) catch return already exists for that reservation
+--      and is not marked DNF.
 --   c) Marking the host member's own catch return as DNF (insert or edit)
 --      deletes any guest catch returns already logged against that same
 --      reservation - a guest can't have fished a beat the host didn't.
@@ -66,7 +67,9 @@ EXECUTE FUNCTION private.cascade_delete_guest_catches_on_dnf();
 -- (the CHECK constraint and trigger above are the real backstop - these
 -- give a clear error message instead of a raw constraint-violation string).
 -- Signature is unchanged from the 20260802103000 migration, so CREATE OR
--- REPLACE is sufficient here.
+-- REPLACE is sufficient here. The member lookup also uses
+-- upper(cr_name) = upper(p_surname) instead of ILIKE, so '%' / '_' in a
+-- surname aren't wildcards (see 20261015110000).
 CREATE OR REPLACE FUNCTION public.submit_catch_return_for_reservation(
     p_password     text,
     p_surname      text,
@@ -111,7 +114,7 @@ BEGIN
 
     SELECT cr_name INTO canonical_name
     FROM private.members
-    WHERE cr_name ILIKE p_surname
+    WHERE upper(cr_name) = upper(p_surname)
       AND year_of_membership::text = current_year
     LIMIT 1;
 
@@ -140,7 +143,9 @@ BEGIN
 
     -- Rule (b): a NEW guest catch return (p_id IS NULL - editing an existing
     -- one by id is unaffected) can't be entered until the host member's own
-    -- catch return already exists for this reservation.
+    -- catch return already exists for this reservation, and that catch
+    -- return isn't a DNF (rule c deletes guest catches when the host marks
+    -- DNF - a guest can't have fished a beat the host didn't).
     IF p_guest AND p_id IS NULL THEN
         SELECT EXISTS (
             SELECT 1
@@ -149,10 +154,11 @@ BEGIN
               AND catch_date = p_catch_date
               AND beat       = p_beat
               AND guest      = false
+              AND dnf        = false
         ) INTO v_own_cr_exists;
 
         IF NOT v_own_cr_exists THEN
-            RAISE EXCEPTION 'Enter your own catch return for this reservation before adding one for a guest.';
+            RAISE EXCEPTION 'Enter your own catch return (not Did Not Fish) for this reservation before adding one for a guest.';
         END IF;
     END IF;
 
