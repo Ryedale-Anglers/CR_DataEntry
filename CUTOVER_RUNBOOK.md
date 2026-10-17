@@ -99,7 +99,7 @@ SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_guest_dnf_mutual
 gh pr create -R Ryedale-Anglers/CR_DataEntry --base main --head Develop \
   --title "Cutover: new catch return form and reservations-only ETL" \
   --body "Replaces index.html with the reservation-first form and switches the nightly Action to etl_reservations_only_to_supabase.py."
-gh pr merge -R Ryedale-Anglers/CR_DataEntry --merge
+gh pr merge <PR number printed above> -R Ryedale-Anglers/CR_DataEntry --merge
 ```
 Then watch Actions → **pages-build-deployment** finish (1–2 minutes).
 

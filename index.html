@@ -209,10 +209,24 @@
             border: 1px solid #ffc107;
         }
 
-        .env-badge.prod {
-            background-color: #d1e7dd;
-            color: #0a3622;
-            border: 1px solid #198754;
+        /* Environment shown as the colour of the club title on every screen:
+           green for production, amber for the local test database. Only
+           the local one also shows a text badge - members never see it. */
+        body.env-prod h1,
+        body.env-local h1 {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border-bottom: none;
+        }
+
+        body.env-prod h1 {
+            background-color: #198754;
+            color: white;
+        }
+
+        body.env-local h1 {
+            background-color: #ffc107;
+            color: #1a365d;
         }
 
         .login-group {
@@ -503,12 +517,18 @@
 
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Show environment badge on every screen, since the login screen is
-    // hidden entirely once logged in and a tester needs to be able to
-    // confirm which backend they're submitting to at every step.
+    // Show the environment on every screen (the login screen is hidden once
+    // logged in): the club title is green for production and amber for the
+    // local test database. Local also gets a "LOCAL" badge; production shows
+    // no text, so members aren't confronted with a technical label.
+    document.body.classList.add(isLocal ? 'env-local' : 'env-prod');
     [document.getElementById('envBadge'), document.getElementById('envBadgeList'), document.getElementById('envBadgeData')].forEach(badge => {
-        badge.textContent = isLocal ? 'LOCAL' : 'PRODUCTION';
-        badge.classList.add(isLocal ? 'local' : 'prod');
+        if (isLocal) {
+            badge.textContent = 'LOCAL';
+            badge.classList.add('local');
+        } else {
+            badge.style.display = 'none';
+        }
     });
 
     // --- Beats: load from Supabase function, fall back to hardcoded ---
