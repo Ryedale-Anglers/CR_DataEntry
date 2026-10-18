@@ -177,6 +177,16 @@ else
     done
 fi
 
+# --- 6. Bring id counters up to the restored data ---
+# A --table restore loads rows but not the counters' values (they're separate
+# SEQUENCE SET entries in the dump), and TRUNCATE ... RESTART IDENTITY above
+# set them back to 1 - so the next insert would fail with a duplicate key.
+# Harmless after a full restore, where the counters are already right.
+echo ""
+echo "🔢 Checking id counters..."
+psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$REPO_DIR/scripts/fix_sequences.sql"
+echo "✅ Id counters checked."
+
 echo ""
 echo "==============================================="
 echo "✅ Local database refreshed from: $(basename "$DUMP_FILE")"
