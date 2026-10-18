@@ -128,7 +128,7 @@ The same web address and the same club password. They now pick a reservation fro
 - [ ] Delete the `GOOGLE_SHEETS_ID` secret (no longer used).
 - [ ] Next morning, check the 02:17 run of the new ETL succeeded.
 - [ ] RAC_ReportProduction: merge its `Develop` into `main` (option 4 now runs the new ETL; option 7 is new). Until then, **don't use option 4 on main**.
-- [ ] Keep the local systemd ETL timer **disabled**. GitHub Actions is the only scheduler.
+- [ ] Local systemd ETL timer (`cr-dataentry-etl.timer`, 13:00) re-enabled after cutover. It runs the same reservations-only ETL as the 02:17 GitHub Action, so running both is safe. Never point it (`run_etl_cron.sh`) at any other script.
 
 The old ETL script (`etl_catch_returns_and_reservations_to_supabase.py`) is deleted as part of the cutover, so it can't be run by mistake. It remains in git history. To recover a copy for reference (never to run against production):
 ```bash

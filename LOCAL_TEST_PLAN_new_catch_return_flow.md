@@ -36,7 +36,8 @@ for f in supabase/.migrations_on_hold/20260929120000_enforce_guest_dnf_rules_and
          supabase/migrations/20261015110000_revoke_anon_season_history_and_exact_surname_match.sql \
          supabase/migrations/20261015120000_create_start_new_season.sql \
          supabase/migrations/20261016100000_season_history_shared_beat_and_season_end.sql \
-         supabase/migrations/20261016110000_reservations_view_one_row_per_shared_beat.sql; do
+         supabase/migrations/20261016110000_reservations_view_one_row_per_shared_beat.sql \
+         supabase/migrations/20261018100000_catch_returns_after_trout_season.sql; do
   psql "$DB" -v ON_ERROR_STOP=1 -q -f "$f" && echo "applied $f"
 done
 ```
@@ -186,9 +187,9 @@ Work through these in order. They all use the **1 Sep Abbey** reservation except
 **C1. Future dates blocked.** Expect the heading **Reservation Not Listed**. In the date picker, try tomorrow's date.
 - Expect: it can't be picked, or Submit is blocked with "Value must be … or earlier".
 
-**C2. Out-of-season dates rejected.** Use 2026-10-05, Abbey, BT 1 → Confirm.
-- Expect: "Database error: Catch date 2026-10-05 is outside the season (2026-04-01 to 2026-09-30)".
-- Repeat with 2026-03-20: same error.
+**C2. Dates before the season rejected; after the trout season accepted.** Use 2026-03-20, Abbey, BT 1 → Confirm.
+- Expect: "Database error: Catch date 2026-03-20 is before the start of the season (2026-04-01)".
+- Repeat with 2026-10-05, Abbey, Grayling 2: **accepted**. Catch returns continue after 30 September for the grayling season. Check state: a Synthetic reservation on `02. Abbey Beat` for 5 Oct, and the 5 Oct row appears in the reservation list.
 
 **C3. Valid date with no booking.** Use 2026-09-10, Upper Harome, BT 3 → Confirm.
 - Check state: the catch is recorded, plus a **Synthetic** reservation on `14. Upper Harome`.
@@ -213,7 +214,7 @@ UPDATE private.members SET email_address = '<your address>' WHERE cr_name = 'ZZ 
 **E1.** Click **Email My Returns YTD**.
 - Expect: "Success! Your catch history has been emailed to you", and an email listing ZZ Test's reservations and catches from sections 4–6.
 - This also confirms the email still works now that the history function is restricted to the service role.
-- Check the email lists 5 Sep (booked on both 17 and 18) **once** per catch return, and nothing after 30 September.
+- Check the email lists 5 Sep (booked on both 17 and 18) **once** per catch return, and includes the 5 Oct grayling return from C2.
 - If you get a connection error, the local edge runtime may not have the Resend key. Run `supabase functions serve --env-file supabase/functions/.env` in another terminal and try again.
 
 ## 8. Server rules the page no longer lets you reach (SQL)
