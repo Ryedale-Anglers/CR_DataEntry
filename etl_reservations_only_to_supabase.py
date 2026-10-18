@@ -20,13 +20,13 @@ IBOOKFISHING_REPORT_SHSEC = os.getenv('IBOOKFISHING_REPORT_SHSEC')
 IBOOKFISHING_REPORT_CALENDAR_ID = os.getenv('IBOOKFISHING_REPORT_CALENDAR_ID')
 IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
 
-# The exact string you type into the browser
-# It defines 'from the start of the season until today' for the report'
-# and makes it year agnostic so you don't have to update it every year.
-thisYear = datetime.now().year
-DATE_STR = f"{thisYear}-04-01 to Today"
-# The date range the download covers - reconciliation only deletes within it.
-SEASON_START = date(thisYear, 4, 1)
+# The download covers the season start (private.year_param.target_start_date,
+# read once connected - see below) to today. Taken from year_param, not the
+# calendar year, so grayling bookings from January to March still sync until
+# the next season is started with private.start_new_season in April.
+# DATE_STR is "the exact string you type into the browser" for the report.
+SEASON_START = None
+DATE_STR = None
 
 # Safeguard: refuse to delete more than this many reservations in one run.
 # Real cancellations between daily runs are a handful; more than this means a
@@ -39,7 +39,7 @@ PAYLOAD = {
     'type': '1',
     'alt_type': '1',
     'download': 'csv',
-    'alt_days': DATE_STR,
+    'alt_days': None,  # set from DATE_STR once the season start is known
     'required_status': '4',
     'sort_field': 'name',
     'id': '759',
@@ -99,6 +99,15 @@ def build_engine():
         return pooler_engine
 
 engine = build_engine()
+
+with engine.connect() as _conn:
+    SEASON_START = _conn.execute(
+        text("SELECT target_start_date FROM private.year_param WHERE id = 1")
+    ).scalar()
+if SEASON_START is None:
+    raise ValueError("private.year_param.target_start_date is not set.")
+DATE_STR = f"{SEASON_START.isoformat()} to Today"
+PAYLOAD['alt_days'] = DATE_STR
 
 def run_reservations_download():
     print(f"Bypassing the UI to download report for: {DATE_STR}...")
@@ -643,8 +652,9 @@ if __name__ == "__main__":
         print("===============================================")
         print(f"Starting ETL process for Reservations at {datestamp}")
 
-        # Before 1 April the download range ("<year>-04-01 to Today") runs
-        # backwards, so there is nothing to sync yet.
+        # Only possible once the next season has been started ahead of its
+        # 1 April start date: the download range would run backwards, so
+        # there is nothing to sync yet.
         if date.today() < SEASON_START:
             print(f"Season starts {SEASON_START} - nothing to sync yet.")
             sys.exit(0)
