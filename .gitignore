@@ -42,3 +42,6 @@ __pycache__/
 
 #deno stuff
 .npmrc
+
+# ibookfishing downloads saved by etl_reservations_only_to_supabase.py --download-only (members' names)
+downloads/
