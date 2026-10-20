@@ -45,3 +45,4 @@ __pycache__/
 
 # ibookfishing downloads saved by etl_reservations_only_to_supabase.py --download-only (members' names)
 downloads/
+.claude/settings.local.json
