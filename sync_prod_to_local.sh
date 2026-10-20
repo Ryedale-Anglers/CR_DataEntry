@@ -35,7 +35,7 @@ set -euo pipefail
 # relative dump-file argument below is resolved against ORIGINAL_PWD (the
 # caller's actual directory), not this repo, so that still works as expected.
 ORIGINAL_PWD="$PWD"
-REPO_DIR="/home/brian/Documents/github/CR_DataEntry"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
 BACKUP_DIR="/var/backups/cr-dataentry"
