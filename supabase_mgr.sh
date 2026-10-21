@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Docker network that the local Supabase containers join
+SUPABASE_NETWORK="local-network"
+
 # Ensure you are in a directory with a supabase folder
 if [ ! -d "supabase" ]; then
     echo "⚠️  Warning: No 'supabase' directory found in the current folder."
@@ -28,7 +31,7 @@ while true; do
     case $choice in
         1)
             echo "🚀 Starting Supabase..."
-            supabase start
+            supabase start --network-id "$SUPABASE_NETWORK"
             ;;
         2)
             echo "🛑 Stopping Supabase..."
@@ -45,7 +48,7 @@ while true; do
             ;;
         4)
             echo "🔄 Restarting..."
-            supabase stop && supabase start
+            supabase stop && supabase start --network-id "$SUPABASE_NETWORK"
             ;;
         5)
             echo "⬆️  Upgrading Supabase CLI..."
@@ -55,7 +58,7 @@ while true; do
             echo "✅ Now running:"
             supabase --version
             echo "🚀 Starting Supabase back up..."
-            supabase start
+            supabase start --network-id "$SUPABASE_NETWORK"
             ;;
         6)
             echo "🗄️  Available backups in /var/backups/cr-dataentry/:"

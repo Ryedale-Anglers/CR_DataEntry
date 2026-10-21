@@ -65,7 +65,7 @@ echo "==============================================="
 echo "Checking local Supabase status..."
 if ! supabase status >/dev/null 2>&1; then
     echo "❌ Local Supabase does not appear to be running."
-    echo "   Run 'supabase start' (or use supabase_mgr.sh) first, then retry."
+    echo "   Run 'sbstart' (or use supabase_mgr.sh) first, then retry."
     exit 1
 fi
 echo "✅ Local Supabase is running."
