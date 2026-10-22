@@ -1,5 +1,7 @@
 # CR_DataEntry database backups: how it all works
 
+*Timeshift (USB stick) deliberately doesn't cover the dumps on Fedora: they're in the home folder, which Timeshift excludes, and Proton Drive is the offsite copy (decided 22 Oct 2026).*
+
 *Set up October 2026 on the Kubuntu laptop (HP 15s). Moved to Fedora 44 KDE on the same laptop on 22 Oct 2026. On Kubuntu the dump was a root system service writing to `/var/backups/cr-dataentry`. On Fedora all three jobs are systemd **user** units, so no `sudo` is needed and SELinux doesn't block them. The Kubuntu timers have been disabled.*
 
 ## Installing on a new machine
@@ -15,13 +17,12 @@ The live copies are the ones in `~/.local/bin` and `~/.config/systemd/user`. Aft
 
 ## Overview
 
-The production Supabase (Postgres) database is backed up every day in three layers:
+The production Supabase (Postgres) database is backed up every day in two layers:
 
 | Layer | What | Where | Kept for |
 |---|---|---|---|
 | 1. Local dump | `pg_dump` of the public and private schemas | `~/.local/share/cr-dataentry/backups/` on the laptop | 180 days (the script deletes older dumps) |
-| 2. System snapshot | **Not currently covered on Fedora:** Timeshift excludes `/home/brianpundyke/**` (see the to-dos) | USB stick "Backups" (`/dev/sda1`, ext4) | Timeshift's retention rules |
-| 3. Offsite | Proton Drive CLI uploads each new dump | Proton Drive: **My files → Backups → cr-dataentry** | ~7 months (213 days) |
+| 2. Offsite | Proton Drive CLI uploads each new dump | Proton Drive: **My files → Backups → cr-dataentry** | ~7 months (213 days) |
 
 The dump and the upload are **not directly linked**. They share a folder and run 30 minutes apart.
 
@@ -42,7 +43,6 @@ The dump and the upload are **not directly linked**. They share a folder and run
               └─ fail if no dump in the last 26 hours
                    (any failure ──► cr-dataentry-offsite-failed.service ──► KDE notification)
 
-17:00  Timeshift daily snapshot ──► USB stick (does NOT include ~/ on Fedora)
 ```
 
 All three timers have `Persistent=true`, and linger is enabled (`loginctl enable-linger`), so the jobs also run while you're logged out.
@@ -324,7 +324,6 @@ These come from reviewing Proton's guide, [How to automate offsite encrypted bac
 
 ## Other to-dos
 
-- [ ] **Put the local dumps back into Timeshift (Fedora).** `/etc/timeshift/timeshift.json` excludes `/home/brianpundyke/**`, so the dumps in `~/.local/share/cr-dataentry/backups` aren't in the USB snapshots, as `/var/backups` was on Kubuntu. To fix it, add an include rule for that folder in Timeshift (Filters → `+ /home/brianpundyke/.local/share/cr-dataentry/backups/***`), or point `BACKUP_DIR` at a folder outside home.
 - [ ] One-off: during the first catch-up upload (8 Oct 2026), the CLI lost its session at the 25 August dump. Re-running resumed fine. Watch for a recurrence.
 - [ ] Consider switching `trash` to `delete` once confident, as trashed files may count towards storage.
 - [ ] Optionally add a second offsite copy to `OneDrive:` via rclone.
@@ -337,6 +336,7 @@ These come from reviewing Proton's guide, [How to automate offsite encrypted bac
 - **Health check:** `e2fsck -fn` was clean, with no kernel I/O errors.
 - **Usage:** 64% space used, 25% inodes.
 - **Exclusions added:** `/var/lib/flatpak/***`, `/var/lib/containerd/***` and `/var/lib/docker/***`. These were adding about 24 GB to snapshots. Config is in `/etc/timeshift/timeshift.json`.
+- **Fedora (22 Oct 2026):** the Fedora Timeshift config started without these exclusions. The first Fedora snapshot filled the stick and failed, so add `/var/lib/containerd/***` and `/var/lib/flatpak/***` again under Settings → Filters. (`/var/lib/docker/*` is in Timeshift's built-in list.)
 - **Home folder:** `/home/brian` (Fedora: `/home/brianpundyke`) is excluded by Timeshift (the default), so the home folder needs its own backup.
 - **Checks:**
   ```bash
