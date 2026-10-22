@@ -1,0 +1,7 @@
+[Unit]
+Description=Catch Returns and Reservations ETL to Supabase
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/github/CR_DataEntry
+ExecStart=%h/github/CR_DataEntry/run_etl_cron.sh

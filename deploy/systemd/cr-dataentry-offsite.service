@@ -1,0 +1,7 @@
+[Unit]
+Description=Upload CR_DataEntry dumps to Proton Drive
+OnFailure=cr-dataentry-offsite-failed.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/cr-dataentry-offsite.sh

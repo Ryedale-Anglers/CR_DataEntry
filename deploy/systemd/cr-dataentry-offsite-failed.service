@@ -1,0 +1,6 @@
+[Unit]
+Description=Notify when the CR_DataEntry offsite backup fails
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/notify-send -u critical "CR_DataEntry backup failed" "Check: journalctl --user -u cr-dataentry-offsite"

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PD="$HOME/.local/bin/proton-drive"
-SRC=/var/backups/cr-dataentry
+SRC="${BACKUP_DIR:-$HOME/.local/share/cr-dataentry/backups}"
 DEST=/my-files/Backups/cr-dataentry
 KEEP_DAYS=213
 STATE="$HOME/.local/state/cr-dataentry-offsite/uploaded.tsv"
