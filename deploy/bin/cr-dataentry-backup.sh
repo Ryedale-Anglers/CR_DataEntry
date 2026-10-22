@@ -9,6 +9,15 @@ DATE=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
 
+DB_HOST=${DB_URL##*@}; DB_HOST=${DB_HOST%%[:/]*}
+# After resume from suspend the timer fires before wifi/DNS is back.
+# Wait up to 90s for the database host to resolve, then carry on regardless.
+for _ in {1..18}; do
+  getent hosts "$DB_HOST" >/dev/null && break
+  echo "Network not ready, waiting 5s..."
+  sleep 5
+done
+
 pg_dump "$DB_URL" \
   --schema=public \
   --schema=private \
