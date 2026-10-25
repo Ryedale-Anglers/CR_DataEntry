@@ -25,6 +25,13 @@ def setup():
     SUPABASE_CONN_STRING = os.getenv('CLOUD_DB_URL' if db_target == 'cloud' else 'LOCAL_DB_URL')
     LOCAL_RAC_REPORT_REPOSITORY_PATH = os.getenv('LOCAL_RAC_REPORT_REPOSITORY_PATH')
 
+    if not LOCAL_RAC_REPORT_REPOSITORY_PATH:
+        raise ValueError("Missing LOCAL_RAC_REPORT_REPOSITORY_PATH environment variable. Check your .env file.")
+
+    # Create the report output directory if it doesn't already exist
+    LOCAL_RAC_REPORT_REPOSITORY_PATH = os.path.expanduser(LOCAL_RAC_REPORT_REPOSITORY_PATH)
+    os.makedirs(LOCAL_RAC_REPORT_REPOSITORY_PATH, exist_ok=True)
+
     if not SUPABASE_CONN_STRING:
         raise ValueError(f"Missing {'CLOUD_DB_URL' if db_target == 'cloud' else 'LOCAL_DB_URL'} environment variable. Check your .env file.")
 
@@ -218,7 +225,7 @@ if __name__ == "__main__":
         now = datetime.now()
         # Format it: Year-Month-Day_Hour-Minute-Second
         timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-        filename_str = f"{LOCAL_RAC_REPORT_REPOSITORY_PATH}inseason_catch_return_compliance_report_{timestamp}.pdf"
+        filename_str = os.path.join(LOCAL_RAC_REPORT_REPOSITORY_PATH, f"inseason_catch_return_compliance_report_{timestamp}.pdf")
         typst.compile("sec_catch_report_operational_main.typ", output=filename_str)
         print("✅ Report PDF generated successfully!")
 
