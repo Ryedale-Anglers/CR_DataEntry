@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-REPO_DIR="/home/brian/Documents/github/CR_DataEntry"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 cd "$REPO_DIR"
 "$REPO_DIR/venv/bin/python3" "$REPO_DIR/generate_in_season_catchreturn_compliance_report.py"

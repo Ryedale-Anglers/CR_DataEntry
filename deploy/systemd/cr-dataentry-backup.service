@@ -1,0 +1,8 @@
+[Unit]
+Description=CR_DataEntry Supabase database backup
+OnFailure=cr-dataentry-backup-failed.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/cr-dataentry/backup.env
+ExecStart=%h/.local/bin/cr-dataentry-backup.sh

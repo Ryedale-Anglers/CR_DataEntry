@@ -688,7 +688,10 @@
 
         toShow.forEach((r, idx) => {
             let statusClass, statusLabel;
-            if (!r.cr_exists) {
+            if (!r.cr_exists && r.guest_cr_count > 0) {
+                // The member didn't fish; their guest's return fulfils the reservation.
+                statusClass = 'logged'; statusLabel = 'Guest Catch Return Logged';
+            } else if (!r.cr_exists) {
                 statusClass = 'awaiting'; statusLabel = 'Awaiting Catch Return';
             } else if (r.cr_dnf) {
                 statusClass = 'dnf'; statusLabel = 'Did Not Fish Logged';
@@ -758,6 +761,9 @@
     // specific one for editing is its row id. null means "add a new guest
     // catch"; non-null means "editing this existing guest catch return".
     let currentGuestEditId = null;
+    // True when this guest catch return is for a reservation the member has
+    // confirmed they did not fish (sent as p_host_did_not_fish).
+    let currentHostDidNotFish = false;
 
     function prefillCatchFields(record) {
         form.dnf.checked = record.dnf;
@@ -775,13 +781,9 @@
             : `submitted ${formatSubmittedAt(submittedAt)} — BT: ${record.brown_trout_released}, Grayling: ${record.grayling}, Rainbow: ${record.rainbow_trout}, Other: ${record.other_species}, BT Retained: ${record.brown_trout_retained}`;
     }
 
-    // Called whenever the member's own record already exists and/or any
-    // guest catches are logged - i.e. whenever there's at least one existing
-    // record, since "add a catch return for my guest" needs to be an
-    // explicit, always-available choice even the very first time (not just
-    // once a guest catch already exists - the member has to be able to
-    // start one). Only a genuinely brand-new reservation with nothing
-    // submitted at all skips this and goes straight to a blank form.
+    // Called for every 'Enter Catch Return', so the member always makes an
+    // explicit choice of whose catch return this is - their own, or a guest's
+    // (including a guest who fished in their place when they didn't fish).
     async function resolveWhichCatchReturn(reservation) {
         const { data: guestCatches, error: guestErr } = await supabaseClient
             .rpc('get_guest_catch_returns_for_reservation', {
@@ -814,31 +816,78 @@
         guestCatches.forEach(g => {
             listItems.push({ value: g.id, label: `Guest Catch — ${describeCatchRecord(g, g.submitted_at)}` });
         });
-        // Rule: a guest catch can't be added until the member's own catch
-        // return exists for this reservation and isn't Did Not Fish
-        // (enforced server-side too, in submit_catch_return_for_reservation) -
-        // only offer the option once it does. Any guest catches already
-        // logged (above) stay editable regardless, in case they predate this rule.
-        const canAddGuest = ownExisting && !ownExisting.dnf;
+        // A guest catch can be added when the member's own return exists and
+        // isn't Did Not Fish, or when there's no member return and the member
+        // confirms they didn't fish (asked once per reservation - see
+        // enterMode). Enforced server-side too, in
+        // submit_catch_return_for_reservation. Existing guest catches stay
+        // editable regardless.
+        const hostConfirmed = guestCatches.some(g => g.host_did_not_fish);
+        const canAddGuest = !ownExisting || !ownExisting.dnf;
         if (canAddGuest) {
-            listItems.push({ value: 'new-guest', label: '+ Add a New Guest Catch' });
+            const guestLabel = ownExisting
+                ? '+ Add a New Guest Catch'
+                : (guestCatches.length > 0
+                    ? '+ Add Another Guest Catch (I did not fish)'
+                    : '+ Add a Guest Catch (I did not fish, my guest did)');
+            listItems.push({ value: 'new-guest', label: guestLabel });
         }
 
         const choice = await showChoice({
             title: 'Which Catch Return?',
             bodyHTML: guestCatches.length > 0
                 ? `<p>This reservation has ${guestCatches.length} guest catch return${guestCatches.length === 1 ? '' : 's'} logged. Choose which to edit${canAddGuest ? ', or add another' : ''}.</p>`
-                : (canAddGuest
-                    ? `<p>Choose which catch return to edit, or add one for a guest.</p>`
-                    : (ownExisting
-                        ? `<p>Your catch return is marked Did Not Fish, so a guest catch can't be added. Edit it below if you did fish.</p>`
-                        : `<p>Enter your own catch return first, before adding one for a guest.</p>`)),
+                : (ownExisting
+                    ? (canAddGuest
+                        ? `<p>Choose which catch return to edit, or add one for a guest.</p>`
+                        : `<p>Your catch return is marked Did Not Fish, so a guest catch can't be added. Edit it below if you did fish.</p>`)
+                    : `<p>Enter your own catch return. If you did not fish yourself and your guest fished in your place, add a guest catch return instead.</p>`),
             listItems,
             buttons: [{ label: 'Cancel', value: false, style: 'background:#95a5a6;' }]
         });
 
         if (choice === false || choice === null) return null;
-        return { choice, ownExisting, guestCatches };
+        return { choice, ownExisting, guestCatches, hostConfirmed };
+    }
+
+    // Asked before the first guest catch return on a reservation with no
+    // member return. Returns true only when the member confirms they did
+    // not fish it themselves.
+    async function confirmHostDidNotFish(reservation) {
+        const where = `<strong>${reservation.beat}</strong> on <strong>${reservation.reservation_date}</strong>`;
+        const answer = await showChoice({
+            title: 'Did You Fish?',
+            bodyHTML: `<p>Did you fish ${where} yourself?</p>
+                <p style="font-size:0.85rem; color:#555;">A guest catch return without your own is only for a reservation you did not fish, where your guest fished in your place.</p>`,
+            buttons: [
+                { label: 'No - only my guest fished', value: 'not-fished', style: 'background:#2c5282;' },
+                { label: 'Yes, I fished too', value: 'fished', style: 'background:#4a7c59;' },
+                { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
+            ]
+        });
+        if (answer === 'fished') {
+            await showChoice({
+                title: 'Enter Your Own Catch Return First',
+                bodyHTML: `<p>As you fished, enter your own catch return for ${where} first. You can then add your guest's.</p>`,
+                buttons: [{ label: 'OK', value: true, style: 'background:#2c5282;' }]
+            });
+        }
+        return answer === 'not-fished';
+    }
+
+    // Shown when the member enters their own return on a reservation where
+    // they earlier confirmed they did not fish. Going ahead clears that
+    // confirmation (server-side trigger) and their own return counts.
+    async function confirmOwnReturnAfterHostDidNotFish(reservation) {
+        return showChoice({
+            title: 'You Said You Did Not Fish',
+            bodyHTML: `<p>When you added your guest's catch return for <strong>${reservation.beat}</strong> on <strong>${reservation.reservation_date}</strong>, you confirmed you did not fish it yourself.</p>
+                <p>Enter your own catch return anyway?</p>`,
+            buttons: [
+                { label: 'Enter My Own Catch Return', value: true, style: 'background:#2c5282;' },
+                { label: 'Cancel', value: false, style: 'background:#95a5a6;' }
+            ]
+        });
     }
 
     // The form heading, catch section heading, submit button and review title
@@ -860,14 +909,24 @@
 
     async function enterMode(mode, reservation) {
         let resolved = null;
-        if (mode === 'a' && (reservation.cr_exists || reservation.guest_cr_count > 0)) {
+        let hostDidNotFish = false;
+        if (mode === 'a') {
             resolved = await resolveWhichCatchReturn(reservation);
             if (!resolved) return; // cancelled - stay on the reservation list, untouched
+
+            if (resolved.choice === 'new-guest' && !resolved.ownExisting) {
+                // Guest return without the member's own: confirm once per reservation.
+                if (!resolved.hostConfirmed && !(await confirmHostDidNotFish(reservation))) return;
+                hostDidNotFish = true;
+            } else if (resolved.choice === 'new-member' && resolved.hostConfirmed) {
+                if (!(await confirmOwnReturnAfterHostDidNotFish(reservation))) return;
+            }
         }
 
         currentMode = mode;
         currentReservation = reservation || null;
         currentGuestEditId = null;
+        currentHostDidNotFish = hostDidNotFish;
 
         document.getElementById('reservationListSection').style.display = 'none';
         document.getElementById('dataSection').style.display = 'flex';
@@ -936,7 +995,9 @@
                     currentGuestEditId = null;
                     isGuestChoice = true;
                     setFormLabels(GUEST_LABELS('Add Guest Catch Return'));
-                    divertNoticeEl.innerHTML = `Adding a catch return for <strong>your guest</strong> on ${where}. Your own catch return is not changed.`;
+                    divertNoticeEl.innerHTML = ownExisting
+                        ? `Adding a catch return for <strong>your guest</strong> on ${where}. Your own catch return is not changed.`
+                        : `Adding a catch return for <strong>your guest</strong> on ${where}. You have confirmed you did not fish this reservation yourself.`;
                     divertNoticeEl.style.display = 'block';
                 } else {
                     const existing = guestCatches.find(g => g.id === choice);
@@ -945,7 +1006,7 @@
                     prefillCatchFields(existing);
                     isGuestChoice = true;
                     setFormLabels(GUEST_LABELS('Edit Guest Catch Return'));
-                    divertNoticeEl.innerHTML = `Editing a <strong>guest</strong> catch return (submitted ${formatSubmittedAt(existing.submitted_at)}) on ${where}. Your own catch return is not changed.`;
+                    divertNoticeEl.innerHTML = `Editing a <strong>guest</strong> catch return (submitted ${formatSubmittedAt(existing.submitted_at)}) on ${where}.${ownExisting ? ' Your own catch return is not changed.' : ''}`;
                     divertNoticeEl.style.display = 'block';
                 }
 
@@ -965,19 +1026,6 @@
                     dnfWrapperEl.style.display = 'block';
                 }
                 form.dnf.dispatchEvent(new Event('change'));
-            } else {
-                // resolved is only null here when neither the member's own
-                // record nor any guest catch exists yet - a genuinely fresh
-                // reservation with nothing submitted at all. A guest catch
-                // can't be entered until the member's own exists (enforced
-                // server-side too), so the first-ever entry is always the
-                // member's own - hide the guest toggle rather than let it be
-                // ticked before there's anything for it to attach after.
-                guestWrapper.style.display = 'none';
-                form.verified.checked = false;
-                dnfWrapperEl.style.display = 'block';
-                form.dnf.dispatchEvent(new Event('change'));
-                setFormLabels({ title: 'Enter Your Catch Return' });
             }
 
         } else if (mode === 'b') {
@@ -1011,9 +1059,8 @@
 
     // "Guest?" is never user-interactive any more: enterMode() always hides
     // it, and drives its checked state itself from the choice made in
-    // resolveWhichCatchReturn() (unticked on a genuinely fresh reservation -
-    // rule (b), member must enter their own catch first). So there's no click
-    // for a listener on it to respond to any more.
+    // resolveWhichCatchReturn(). So there's no click for a listener on it to
+    // respond to any more.
 
     // --- Generic choice-modal helper (now only used for the existing-record
     // overwrite confirmation, since reservation matching is no longer
@@ -1101,7 +1148,7 @@
         const count = reservation && reservation.guest_cr_count;
         if (!count) return '';
         return `<div style="margin-top:8px; padding:6px 10px; background:#fdf2f2; border:1px solid #f5c6cb; border-radius:4px; color:#c0392b; font-size:0.8rem;">
-            ⚠ This will also delete ${count} guest catch${count === 1 ? '' : 'es'} already logged against this reservation.
+            ⚠ ${count} guest catch return${count === 1 ? ' is' : 's are'} logged for this reservation. Marking it Did Not Fish will delete ${count === 1 ? 'it' : 'them'}. Are you sure?
         </div>`;
     }
 
@@ -1138,7 +1185,7 @@
                 <strong>Member:</strong> ${loggedInSurname}<br>
                 <strong>Date:</strong> ${catchDate}<br>
                 <strong>Beat:</strong> ${beat}<br>
-                <strong>Guest:</strong> ${form.verified.checked ? (currentGuestEditId ? 'Yes (editing previous entry)' : 'Yes') : 'No'}<br>
+                <strong>Guest:</strong> ${form.verified.checked ? (currentGuestEditId ? 'Yes (editing previous entry)' : (currentHostDidNotFish ? 'Yes (you did not fish)' : 'Yes')) : 'No'}<br>
                 <hr style="border:0; border-top:1px dashed #ccc;">
                 <strong>BT (C&amp;R):</strong> ${formData.get('v1')} | <strong>Grayling:</strong> ${formData.get('v2')}<br>
                 <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
@@ -1195,7 +1242,8 @@
                     p_other:       Number(formData.get('v4')),
                     p_bt_retained: Number(formData.get('v5')),
                     p_comments:    form.comments.value.trim(),
-                    p_id:          form.verified.checked ? currentGuestEditId : null
+                    p_id:          form.verified.checked ? currentGuestEditId : null,
+                    p_host_did_not_fish: form.verified.checked && currentHostDidNotFish
                 }));
             } else if (currentMode === 'b') {
                 ({ error } = await supabaseClient.rpc('submit_catch_return_different_beat', {

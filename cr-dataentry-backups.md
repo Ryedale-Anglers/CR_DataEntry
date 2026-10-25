@@ -1,24 +1,41 @@
 # CR_DataEntry database backups: how it all works
 
-*Set up October 2026 on the Kubuntu laptop (HP 15s).*
+*Timeshift (USB stick) deliberately doesn't cover the dumps on Fedora: they're in the home folder, which Timeshift excludes, and Proton Drive is the offsite copy (decided 22 Oct 2026).*
+
+*Set up October 2026 on the Kubuntu laptop (HP 15s). Moved to Fedora 44 KDE on the same laptop on 22 Oct 2026. On Kubuntu the dump was a root system service writing to `/var/backups/cr-dataentry`. On Fedora all three jobs are systemd **user** units, so no `sudo` is needed and SELinux doesn't block them. The Kubuntu timers have been disabled.*
+
+## Installing on a new machine
+
+The unit files, scripts and an env template are in [`deploy/`](deploy/). To install them, run:
+
+```bash
+deploy/install.sh                       # copies scripts + units, enables timers and linger
+nano ~/.config/cr-dataentry/backup.env  # set DB_URL (= CLOUD_DB_URL_POOLER from .env)
+```
+
+The live copies are the ones in `~/.local/bin` and `~/.config/systemd/user`. After changing those, copy the changes back to `deploy/`.
 
 ## Overview
 
-The production Supabase (Postgres) database is backed up every day in three layers:
+The production Supabase (Postgres) database is backed up every day in two layers:
 
 | Layer | What | Where | Kept for |
 |---|---|---|---|
-| 1. Local dump | `pg_dump` of the public and private schemas | `/var/backups/cr-dataentry/` on the laptop | Kept indefinitely for now (target ~7 months; handled in the end-of-year clean-up) |
-| 2. System snapshot | Timeshift copies `/var/backups` with the rest of the system | USB stick "Backups" (`/dev/sda1`, ext4) | Timeshift's retention rules |
-| 3. Offsite | Proton Drive CLI uploads each new dump | Proton Drive: **My files → Backups → cr-dataentry** | ~7 months (213 days) |
+| 1. Local dump | `pg_dump` of the public and private schemas | `~/.local/share/cr-dataentry/backups/` on the laptop | 180 days (the script deletes older dumps) |
+| 2. Offsite | Proton Drive CLI uploads each new dump | Proton Drive: **My files → Backups → cr-dataentry** | ~7 months (213 days) |
 
 The dump and the upload are **not directly linked**. They share a folder and run 30 minutes apart.
 
 ```
-15:00  cr-dataentry-backup.timer   (system, root)
-         └─ pg_dump ──► /var/backups/cr-dataentry/cr_dataentry_YYYYMMDD_HHMMSS.dump
+13:00  cr-dataentry-etl.timer      (user)
+         └─ run_etl_cron.sh ──► reservations ETL to Supabase
 
-15:30  cr-dataentry-offsite.timer  (user, brian)
+15:00  cr-dataentry-backup.timer   (user)
+         └─ ~/.local/bin/cr-dataentry-backup.sh
+              └─ pg_dump ──► ~/.local/share/cr-dataentry/backups/cr_dataentry_YYYYMMDD_HHMMSS.dump
+                   (failure ──► cr-dataentry-backup-failed.service ──► KDE notification)
+
+15:30  cr-dataentry-offsite.timer  (user)
          └─ ~/.local/bin/cr-dataentry-offsite.sh
               ├─ upload new dumps ──► Proton Drive /my-files/Backups/cr-dataentry
               ├─ trash Proton copies uploaded more than 213 days ago
@@ -26,25 +43,21 @@ The dump and the upload are **not directly linked**. They share a folder and run
               └─ fail if no dump in the last 26 hours
                    (any failure ──► cr-dataentry-offsite-failed.service ──► KDE notification)
 
-17:00  Timeshift daily snapshot ──► USB stick (includes /var/backups)
 ```
 
-(The Python ETL runs separately at 13:00 as `cr-dataentry-etl.service`.)
+All three timers have `Persistent=true`, and linger is enabled (`loginctl enable-linger`), so the jobs also run while you're logged out.
 
 ---
 
 ## 1. The dump: `cr-dataentry-backup`
 
-- **Type:** a system service and timer pair, run as root.
+- **Type:** a user service and timer pair. The script is `~/.local/bin/cr-dataentry-backup.sh` (repo copy: `deploy/bin/`).
+- **Connection:** `DB_URL` comes from `~/.config/cr-dataentry/backup.env` (mode 600). It's the Supabase session pooler URL (port 5432), the same value as `CLOUD_DB_URL_POOLER` in the project `.env`.
 - **Schedule:** daily at 15:00, plus a random delay of up to 10 minutes (`RandomizedDelaySec=10m`). The timer has `Persistent=true`, so a dump missed while the laptop was off runs at the next boot. Dumps usually finish between 15:03 and 15:10, leaving a margin before the 15:30 upload's 10-minute "still being written" cutoff.
-- **Output:** `/var/backups/cr-dataentry/cr_dataentry_YYYYMMDD_HHMMSS.dump`, about 220 KB each.
-- **Local retention:** there's no automatic pruning yet. Old dumps are kept, which is fine because each is about 220 KB. The target is 7 months, to be covered by the end-of-year clean-up. If automatic pruning is wanted later, a drop-in (`sudo systemctl edit cr-dataentry-backup.service`) would add:
-  ```ini
-  [Service]
-  ExecStartPost=/usr/bin/find /var/backups/cr-dataentry -type f -name 'cr_dataentry_*.dump' -mtime +213 -delete
-  ```
-  To preview what would be deleted, run the same `find` with `-print` in place of `-delete`. Deleting local dumps never affects the Proton copies.
-- **Logs:** `journalctl -u cr-dataentry-backup`
+- **Output:** `~/.local/share/cr-dataentry/backups/cr_dataentry_YYYYMMDD_HHMMSS.dump`, about 240 KB each. The directory can be overridden with `BACKUP_DIR`. The 70 Kubuntu dumps (from 30 July 2026) were copied there.
+- **Local retention:** the script deletes dumps older than 180 days (`RETENTION_DAYS`). Deleting local dumps never affects the Proton copies.
+- **Failure alert:** `OnFailure=cr-dataentry-backup-failed.service` shows a critical KDE notification.
+- **Logs:** `journalctl --user -u cr-dataentry-backup`
 
 ## 2. The offsite upload: `cr-dataentry-offsite`
 
@@ -83,7 +96,7 @@ For the same reason it can't be chained to the dump with `OnSuccess=`, because t
 set -euo pipefail
 
 PD="$HOME/.local/bin/proton-drive"
-SRC=/var/backups/cr-dataentry
+SRC="${BACKUP_DIR:-$HOME/.local/share/cr-dataentry/backups}"
 DEST=/my-files/Backups/cr-dataentry
 KEEP_DAYS=213
 STATE="$HOME/.local/state/cr-dataentry-offsite/uploaded.tsv"
@@ -126,7 +139,7 @@ if [[ -z $(find "$SRC" -maxdepth 1 -name 'cr_dataentry_*.dump' -mmin -1560 -prin
 fi
 ```
 
-A copy of the script is kept in the repo as `cr-dataentry-offsite.sh`. The live copy is the one in `~/.local/bin`, so copy any changes back to the repo.
+A copy of the script is kept in the repo as `deploy/bin/cr-dataentry-offsite.sh`. The live copy is the one in `~/.local/bin`, so copy any changes back to the repo.
 
 ### The units
 
@@ -230,8 +243,8 @@ The 15:00 dump is a system service, so it runs whether or not you're logged in, 
 systemctl --user list-timers | grep cr-dataentry
 
 # Did today's dump run?
-journalctl -u cr-dataentry-backup --since today
-ls -l /var/backups/cr-dataentry | tail -3
+journalctl --user -u cr-dataentry-backup --since today
+ls -l ~/.local/share/cr-dataentry/backups | tail -3
 
 # Did the upload run?
 journalctl --user -u cr-dataentry-offsite --since today
@@ -251,7 +264,7 @@ proton-drive fs download /my-files/Backups/cr-dataentry/$F ./
 pg_restore --list $F | head
 
 # 2. Byte-for-byte identical to the local original? (only while the local copy still exists)
-cmp $F /var/backups/cr-dataentry/$F && echo identical
+cmp $F ~/.local/share/cr-dataentry/backups/$F && echo identical
 
 # 3. Every data block readable and decompressible? (no database needed)
 pg_restore -f /dev/null $F && echo "all data readable"
@@ -280,12 +293,11 @@ pg_restore -f - --data-only $F | awk '/^COPY /{t=$2;n=0;on=1;next} /^\\\.$/{if(o
 |---|---|
 | `You need to login first` | The session was lost or a refresh failed. Run `proton-drive auth login`, then re-run the script. Check the CLI log for 401 or refresh errors. |
 | Fails partway through a big catch-up | Possible throttling. Add `sleep 5` after the upload line for large backfills. |
-| Upload unit failed, can't read the dump | Dump file permissions. Your user needs read access to `/var/backups/cr-dataentry/*`. |
 | New files missing in Dolphin | The rclone 72h directory cache. See section 4. |
 | `Illegal instruction` after a CLI update | Use the baseline or non-AVX2 Linux build. |
 | Upload didn't run at 15:30 | You weren't logged in. It runs at the next login. Check `list-timers`. |
 | Upload fails while the screen is locked | KWallet closed itself. Check the KWallet settings (see "Credentials: KWallet"). |
-| `ERROR: no dump created in the last 26 hours` | The 15:00 dump failed or didn't run. Check `journalctl -u cr-dataentry-backup` and `systemctl list-timers \| grep cr-dataentry`. A single occurrence after the laptop has been off for days can be a false alarm (see "Behaviour"). |
+| `ERROR: no dump created in the last 26 hours` | The 15:00 dump failed or didn't run. Check `journalctl --user -u cr-dataentry-backup` and `systemctl --user list-timers \| grep cr-dataentry`. A single occurrence after the laptop has been off for days can be a false alarm (see "Behaviour"). |
 | "CR_DataEntry backup failed" notification | The offsite unit failed. Run `journalctl --user -u cr-dataentry-offsite -n 50` to see why. |
 | No notification appears on failure | Check `journalctl --user -u cr-dataentry-offsite-failed`, and test with `systemctl --user start cr-dataentry-offsite-failed.service`. |
 
@@ -312,7 +324,6 @@ These come from reviewing Proton's guide, [How to automate offsite encrypted bac
 
 ## Other to-dos
 
-- [ ] **Local pruning is deferred to the end-of-year clean-up.** The target is to keep 7 months locally. The oldest local dump is from 30 July 2026, so nothing passes 7 months before about February 2027. See section 1 for a ready-made drop-in.
 - [ ] One-off: during the first catch-up upload (8 Oct 2026), the CLI lost its session at the 25 August dump. Re-running resumed fine. Watch for a recurrence.
 - [ ] Consider switching `trash` to `delete` once confident, as trashed files may count towards storage.
 - [ ] Optionally add a second offsite copy to `OneDrive:` via rclone.
@@ -325,7 +336,8 @@ These come from reviewing Proton's guide, [How to automate offsite encrypted bac
 - **Health check:** `e2fsck -fn` was clean, with no kernel I/O errors.
 - **Usage:** 64% space used, 25% inodes.
 - **Exclusions added:** `/var/lib/flatpak/***`, `/var/lib/containerd/***` and `/var/lib/docker/***`. These were adding about 24 GB to snapshots. Config is in `/etc/timeshift/timeshift.json`.
-- **Home folder:** `/home/brian` is excluded by Timeshift (the default), so the home folder needs its own backup.
+- **Fedora (22 Oct 2026):** the Fedora Timeshift config started without these exclusions. The first Fedora snapshot filled the stick and failed, so add `/var/lib/containerd/***` and `/var/lib/flatpak/***` again under Settings → Filters. (`/var/lib/docker/*` is in Timeshift's built-in list.)
+- **Home folder:** `/home/brian` (Fedora: `/home/brianpundyke`) is excluded by Timeshift (the default), so the home folder needs its own backup.
 - **Checks:**
   ```bash
   sudo timeshift --list

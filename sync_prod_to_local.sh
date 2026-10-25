@@ -35,7 +35,7 @@ set -euo pipefail
 # relative dump-file argument below is resolved against ORIGINAL_PWD (the
 # caller's actual directory), not this repo, so that still works as expected.
 ORIGINAL_PWD="$PWD"
-REPO_DIR="/home/brian/Documents/github/CR_DataEntry"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
 BACKUP_DIR="/var/backups/cr-dataentry"
@@ -65,7 +65,7 @@ echo "==============================================="
 echo "Checking local Supabase status..."
 if ! supabase status >/dev/null 2>&1; then
     echo "❌ Local Supabase does not appear to be running."
-    echo "   Run 'supabase start' (or use supabase_mgr.sh) first, then retry."
+    echo "   Run 'sbstart' (or use supabase_mgr.sh) first, then retry."
     exit 1
 fi
 echo "✅ Local Supabase is running."
@@ -176,6 +176,16 @@ else
         echo "✅ Schema '$SCHEMA' restored."
     done
 fi
+
+# --- 6. Bring id counters up to the restored data ---
+# A --table restore loads rows but not the counters' values (they're separate
+# SEQUENCE SET entries in the dump), and TRUNCATE ... RESTART IDENTITY above
+# set them back to 1 - so the next insert would fail with a duplicate key.
+# Harmless after a full restore, where the counters are already right.
+echo ""
+echo "🔢 Checking id counters..."
+psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$REPO_DIR/scripts/fix_sequences.sql"
+echo "✅ Id counters checked."
 
 echo ""
 echo "==============================================="

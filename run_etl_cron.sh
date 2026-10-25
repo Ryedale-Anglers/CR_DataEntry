@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-REPO_DIR="/home/brian/Documents/github/CR_DataEntry"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="$REPO_DIR/etl_cron.log"
 MAX_WAIT=90
 WAITED=0

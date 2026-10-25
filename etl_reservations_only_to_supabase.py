@@ -643,7 +643,33 @@ def deduplicate_catch_returns(conn):
         raise e
 
 # --- EXECUTION AREA ---
+def save_download_only():
+    """
+    --download-only: fetch the ibookfishing CSV exactly as a normal run would
+    (same date range and credentials) and save it to downloads/, without
+    touching the database beyond reading the season start. The folder is
+    git-ignored - the file holds members' names.
+    """
+    data = run_reservations_download()
+    if not data:
+        print("No data received from download.")
+        sys.exit(1)
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"reservations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+    with open(path, 'wb') as f:
+        f.write(data)
+    rows = pd.read_csv(io.BytesIO(data), skiprows=2, names=['date', 'resource', 'name'])
+    print(f"Saved {len(data)} bytes to {path}")
+    print(f"{len(rows)} reservation rows (the ETL skips the first 2 lines of the file).")
+    print("Nothing was written to the database.")
+
+
 if __name__ == "__main__":
+    if '--download-only' in sys.argv:
+        save_download_only()
+        sys.exit(0)
+
     try:
         # Identify timestamp this program is being run 
         # for the log file

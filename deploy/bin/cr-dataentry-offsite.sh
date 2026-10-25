@@ -2,7 +2,16 @@
 set -euo pipefail
 
 PD="$HOME/.local/bin/proton-drive"
-SRC=/var/backups/cr-dataentry
+
+# After resume from suspend the timer fires before wifi/DNS is back.
+# Wait up to 90s for Proton Drive to resolve, then carry on regardless.
+for _ in {1..18}; do
+  getent hosts drive-api.proton.me >/dev/null && break
+  echo "Network not ready, waiting 5s..."
+  sleep 5
+done
+
+SRC="${BACKUP_DIR:-$HOME/.local/share/cr-dataentry/backups}"
 DEST=/my-files/Backups/cr-dataentry
 KEEP_DAYS=213
 STATE="$HOME/.local/state/cr-dataentry-offsite/uploaded.tsv"

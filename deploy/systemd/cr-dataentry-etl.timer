@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Catch Returns ETL daily at 13:00 (catches up on boot if missed)
+
+[Timer]
+OnCalendar=*-*-* 13:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
