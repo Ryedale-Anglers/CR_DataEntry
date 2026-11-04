@@ -5,7 +5,12 @@ on:
     # This runs at 02:17 London time daily
     - cron: '17 2 * * *'
       timezone: 'Europe/London'
-  workflow_dispatch: 
+  workflow_dispatch:
+    inputs:
+      full_season:
+        description: 'Reconcile the whole season instead of the last 10 days'
+        type: boolean
+        default: false
 
 jobs:
   run-etl:
@@ -37,4 +42,6 @@ jobs:
           IBOOKFISHING_REPORT_SHSEC: ${{ secrets.IBOOKFISHING_REPORT_SHSEC }}
           IBOOKFISHING_REPORT_CALENDAR_ID: ${{ secrets.IBOOKFISHING_REPORT_CALENDAR_ID }}
           IBOOKFISHING_REPORT_S2: ${{ secrets.IBOOKFISHING_REPORT_S2 }}
+          # Empty on scheduled runs, so they use the 10-day window
+          ETL_FULL_SEASON: ${{ inputs.full_season }}
         run: python etl_reservations_only_to_supabase.py
