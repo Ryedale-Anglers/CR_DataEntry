@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # Load environment variables (for your DB password/connection string)
 load_dotenv()
@@ -20,12 +20,24 @@ IBOOKFISHING_REPORT_SHSEC = os.getenv('IBOOKFISHING_REPORT_SHSEC')
 IBOOKFISHING_REPORT_CALENDAR_ID = os.getenv('IBOOKFISHING_REPORT_CALENDAR_ID')
 IBOOKFISHING_REPORT_S2 = os.getenv('IBOOKFISHING_REPORT_S2')
 
-# The download covers the season start (private.year_param.target_start_date,
-# read once connected - see below) to today. Taken from year_param, not the
-# calendar year, so grayling bookings from January to March still sync until
-# the next season is started with private.start_new_season in April.
+# The download covers a rolling window: the last LOOKBACK_DAYS days to today.
+# Reservations can't be cancelled once their date has passed, so older rows
+# never change and don't need re-checking. The window never starts before the
+# season start (private.year_param.target_start_date, read once connected - see
+# below). Taken from year_param, not the calendar year, so grayling bookings
+# from January to March still sync until the next season is started with
+# private.start_new_season in April.
+#
+# Run with --full (or ETL_FULL_SEASON=1) to download and reconcile the whole
+# season instead, e.g. as an occasional check.
+#
+# The same window is used for the download and for choosing rows that may be
+# deleted, so rows before the window are never touched.
 # DATE_STR is "the exact string you type into the browser" for the report.
+LOOKBACK_DAYS = int(os.getenv('ETL_LOOKBACK_DAYS', '10'))
+FULL_SEASON = '--full' in sys.argv or os.getenv('ETL_FULL_SEASON', '').lower() in ('1', 'true', 'yes')
 SEASON_START = None
+WINDOW_START = None
 DATE_STR = None
 
 # Safeguard: refuse to delete more than this many reservations in one run.
@@ -106,11 +118,16 @@ with engine.connect() as _conn:
     ).scalar()
 if SEASON_START is None:
     raise ValueError("private.year_param.target_start_date is not set.")
-DATE_STR = f"{SEASON_START.isoformat()} to Today"
+if FULL_SEASON:
+    WINDOW_START = SEASON_START
+else:
+    WINDOW_START = max(SEASON_START, date.today() - timedelta(days=LOOKBACK_DAYS))
+DATE_STR = f"{WINDOW_START.isoformat()} to Today"
 PAYLOAD['alt_days'] = DATE_STR
 
 def run_reservations_download():
-    print(f"Bypassing the UI to download report for: {DATE_STR}...")
+    mode = "full season" if FULL_SEASON else f"last {LOOKBACK_DAYS} days"
+    print(f"Bypassing the UI to download report for: {DATE_STR} ({mode})...")
     try:
         response = requests.post(URL, data=PAYLOAD, timeout=30)
         response.raise_for_status()
@@ -125,7 +142,9 @@ def run_reservations_download():
 
 def refresh_reservations_table_data(csv_bytes, table_name, conn):
     """
-    Reconciles the reservations table against the freshly downloaded season CSV,
+    Reconciles the reservations table against the freshly downloaded CSV
+    (WINDOW_START to today - the last LOOKBACK_DAYS days, or the whole season
+    with --full),
     instead of truncating and reloading it. Truncate/reload would silently wipe
     out the 'Synthetic' reservation rows created in real time by catch-return
     submissions (see insert_catch_return in Supabase), since those never appear
@@ -137,9 +156,9 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
     Safeguards, since a bad download would otherwise delete real reservations
     (any failure raises, so the whole run rolls back and exits non-zero):
       1. A download with no usable rows is refused while reservations already
-         exist for the season.
-      2. Only rows dated within the download's range (SEASON_START to today)
-         are compared and can be deleted - earlier years and future dates are
+         exist in the window.
+      2. Only rows dated within the download's range (WINDOW_START to today)
+         are compared and can be deleted - earlier dates and future dates are
          never touched.
       3. More than MAX_DELETIONS deletions in one run is refused.
     """
@@ -169,17 +188,24 @@ def refresh_reservations_table_data(csv_bytes, table_name, conn):
                   AND date BETWEEN :window_start AND :window_end
             """),
             conn,
-            params={"window_start": SEASON_START, "window_end": window_end}
+            params={"window_start": WINDOW_START, "window_end": window_end}
         )
 
-        # Safeguard 1: an empty download while the season already has
+        # Safeguard 1: an empty download while the window already has
         # reservations means the download failed, not that every booking
         # was cancelled.
         if df_final.empty and not existing.empty:
             raise RuntimeError(
                 f"Download has no usable reservations but {len(existing)} exist for "
-                f"{SEASON_START} to {window_end} - refusing to delete them all."
+                f"{WINDOW_START} to {window_end} - refusing to delete them all."
             )
+
+        # Rows outside the window (e.g. if ibookfishing ignored the start date)
+        # are left alone, so they can't be inserted twice.
+        outside = (df_final['date'] < WINDOW_START) | (df_final['date'] > window_end)
+        if outside.any():
+            print(f"⚠️  Ignoring {outside.sum()} downloaded row(s) dated outside {WINDOW_START} to {window_end}.")
+        df_final = df_final[~outside]
 
         fresh_keys = set(df_final[['date', 'resource', 'name']].itertuples(index=False, name=None))
         existing_keys = set(existing[['date', 'resource', 'name']].itertuples(index=False, name=None))

@@ -121,12 +121,47 @@ def generate_member_status_table(conn):
           f"{totals['missing']} missing")
 
 
+def generate_members_no_reservations_table(conn):
+    df = pd.read_sql_query(
+        "SELECT member_name, cr_name, email_address FROM private.view_members_without_season_reservations_v2",
+        conn)
+
+    table = """
+    == Members with No Reservations
+    Members of the current season with no reservations from 1 April to 30 September, in surname order.
+    #v(0.5em)
+    #set text(size: 0.8em)
+    #table(
+    columns: (4.5cm, 3cm, 1fr),
+    inset: 4pt,
+    align: (left, left, left),
+    fill: (x, y) => if y == 0 { gray.lighten(80%) },
+    stroke: 0.5pt + gray,
+    table.header(
+        [*Member Name*], [*CR Name*], [*Email Address*]
+    ),
+    """
+    for _, row in df.iterrows():
+        cells = ", ".join(f"[{typst_text(row[c]) if pd.notna(row[c]) else ''}]"
+                          for c in ('member_name', 'cr_name', 'email_address'))
+        table += f'  {cells},\n'
+    table += ")"
+
+    with open("members_no_reservations_v2.typ", "w", encoding="utf-8") as f:
+        f.write(table)
+
+    print(f"Members with no reservations: {len(df)}")
+
+
 def generate_report_sections(conn):
     generate_member_status_table(conn)
+    generate_members_no_reservations_table(conn)
 
     sections = """
     #pagebreak()
     #include "member_return_status.typ"
+    #v(1em)
+    #include "members_no_reservations_v2.typ"
     #v(1em)
     #text(weight: "regular", 1em, fill: blue)[-- End of Report --]
     """
