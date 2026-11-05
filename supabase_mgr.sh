@@ -3,6 +3,9 @@
 # Docker network that the local Supabase containers join
 SUPABASE_NETWORK="local-network"
 
+# Where cr-dataentry-backup.sh (systemd user timer) writes the database dumps
+BACKUP_DIR="${BACKUP_DIR:-$HOME/.local/share/cr-dataentry/backups}"
+
 # Ensure you are in a directory with a supabase folder
 if [ ! -d "supabase" ]; then
     echo "⚠️  Warning: No 'supabase' directory found in the current folder."
@@ -17,7 +20,7 @@ show_menu() {
     echo "2) Stop Supabase"
     echo "3) Check Status"
     echo "4) Restart Instance"
-    echo "5) Upgrade Supabase CLI (brew)"
+    echo "5) Upgrade Supabase CLI (dnf)"
     echo "6) List Available Backups"
     echo "7) Sync Production Data -> Local"
     echo "8) Exit"
@@ -51,18 +54,41 @@ while true; do
             supabase stop && supabase start --network-id "$SUPABASE_NETWORK"
             ;;
         5)
-            echo "⬆️  Upgrading Supabase CLI..."
-            echo "🛑 Stopping Supabase first (avoids running containers on a different CLI version than what's installed)..."
-            supabase stop
-            brew update && brew upgrade supabase
-            echo "✅ Now running:"
-            supabase --version
-            echo "🚀 Starting Supabase back up..."
-            supabase start --network-id "$SUPABASE_NETWORK"
+            # Installed from the GitHub release .rpm (not packaged in the
+            # Fedora repos, and Homebrew isn't used on this machine).
+            echo "⬆️  Checking for a newer Supabase CLI..."
+            current=$(rpm -q --qf '%{VERSION}' supabase 2>/dev/null)
+            latest=$(gh release view --repo supabase/cli --json tagName --jq .tagName | tr -d v)
+            if [ -z "$latest" ]; then
+                echo "❌ Couldn't get the latest version from GitHub (check: gh auth status)."
+            elif [ "$current" = "$latest" ]; then
+                echo "✅ Already on the latest version ($current)."
+            else
+                echo "Installed: ${current:-none}   Latest: $latest"
+                if [ "${current%%.*}" != "${latest%%.*}" ]; then
+                    echo "⚠️  This is a major version change - check the release notes first:"
+                    echo "   https://github.com/supabase/cli/releases/tag/v$latest"
+                fi
+                read -r -p "Upgrade to $latest? [y/N] " answer
+                if [[ "$answer" =~ ^[Yy]$ ]]; then
+                    echo "🛑 Stopping Supabase first (avoids running containers on a different CLI version than what's installed)..."
+                    supabase stop
+                    if sudo dnf install -y "https://github.com/supabase/cli/releases/download/v$latest/supabase_${latest}_linux_amd64.rpm"; then
+                        echo "✅ Now running:"
+                        supabase --version
+                    else
+                        echo "❌ Upgrade failed - still on $current."
+                    fi
+                    echo "🚀 Starting Supabase back up..."
+                    supabase start --network-id "$SUPABASE_NETWORK"
+                else
+                    echo "Upgrade skipped."
+                fi
+            fi
             ;;
         6)
-            echo "🗄️  Available backups in /var/backups/cr-dataentry/:"
-            ls -lh /var/backups/cr-dataentry/
+            echo "🗄️  Available backups in $BACKUP_DIR:"
+            ls -lh "$BACKUP_DIR"
             ;;
         7)
             echo "🔄 Syncing production data to local..."
