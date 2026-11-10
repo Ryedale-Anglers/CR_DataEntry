@@ -38,7 +38,8 @@ ORIGINAL_PWD="$PWD"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
-BACKUP_DIR="/var/backups/cr-dataentry"
+# Where cr-dataentry-backup.sh (systemd user timer) writes the dumps
+BACKUP_DIR="${BACKUP_DIR:-$HOME/.local/share/cr-dataentry/backups}"
 LOCAL_DB_URL="postgresql://postgres:postgres@localhost:54322/postgres"
 SCHEMAS=(public private)
 # Unqualified names - pg_restore's --table on this version does not match
