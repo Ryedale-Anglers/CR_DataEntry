@@ -93,7 +93,25 @@ while true; do
         7)
             echo "🔄 Syncing production data to local..."
             SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            "$SCRIPT_DIR/sync_prod_to_local.sh"
+            # Newest first; offer the 10 most recent, Enter = latest
+            mapfile -t dumps < <(ls -t "$BACKUP_DIR"/cr_dataentry_*.dump 2>/dev/null | head -n 10)
+            if [ ${#dumps[@]} -eq 0 ]; then
+                echo "❌ No backup files found in $BACKUP_DIR"
+            else
+                echo "Which backup?"
+                for i in "${!dumps[@]}"; do
+                    label="$(basename "${dumps[$i]}")"
+                    [ "$i" -eq 0 ] && label="$label (latest)"
+                    echo "  $((i + 1))) $label"
+                done
+                read -r -p "Choose [1-${#dumps[@]}, Enter = latest]: " pick
+                pick="${pick:-1}"
+                if [[ "$pick" =~ ^[0-9]+$ ]] && [ "$pick" -ge 1 ] && [ "$pick" -le ${#dumps[@]} ]; then
+                    "$SCRIPT_DIR/sync_prod_to_local.sh" "${dumps[$((pick - 1))]}"
+                else
+                    echo "❌ Invalid choice. Nothing was run."
+                fi
+            fi
             ;;
         8)
             echo "👋 Goodbye!"
