@@ -22,7 +22,7 @@ show_menu() {
     echo "4) Restart Instance"
     echo "5) Upgrade Supabase CLI (dnf)"
     echo "6) List Available Backups"
-    echo "7) Sync Production Data -> Local"
+    echo "7) Restore local DB from .dump file"
     echo "8) Exit"
     echo "---------------------------"
     echo -n "Choose an option [1-8]: "
@@ -87,11 +87,20 @@ while true; do
             fi
             ;;
         6)
-            echo "🗄️  Available backups in $BACKUP_DIR:"
-            ls -lh "$BACKUP_DIR"
+            # Newest first and capped, so the list isn't scrolled off-screen
+            # by the menu being redrawn underneath it.
+            mapfile -t dumps < <(ls -t "$BACKUP_DIR"/cr_dataentry_*.dump 2>/dev/null)
+            if [ ${#dumps[@]} -eq 0 ]; then
+                echo "❌ No backup files found in $BACKUP_DIR"
+            else
+                echo "🗄️  Backups in $BACKUP_DIR"
+                echo "   ${#dumps[@]} dump(s), $(du -sh "$BACKUP_DIR" | cut -f1) total. Newest 15:"
+                ls -lht "${dumps[@]:0:15}" | awk '{print "   " $5 "\t" $6 " " $7 " " $8 "\t" $NF}' | sed "s|$BACKUP_DIR/||"
+            fi
+            read -r -p "Press Enter to return to the menu..."
             ;;
         7)
-            echo "🔄 Syncing production data to local..."
+            echo "🔄 Restoring local DB from a .dump file..."
             SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             # Newest first; offer the 10 most recent, Enter = latest
             mapfile -t dumps < <(ls -t "$BACKUP_DIR"/cr_dataentry_*.dump 2>/dev/null | head -n 10)
