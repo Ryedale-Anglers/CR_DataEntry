@@ -23,9 +23,10 @@ show_menu() {
     echo "5) Upgrade Supabase CLI (dnf)"
     echo "6) List Available Backups"
     echo "7) Restore local DB from .dump file"
-    echo "8) Exit"
+    echo "8) Show Supabase CLI Version"
+    echo "9) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-8]: "
+    echo -n "Choose an option [1-9]: "
 }
 
 while true; do
@@ -123,6 +124,10 @@ while true; do
             fi
             ;;
         8)
+            # Skip the CLI's own "new version available" notice; option 5 handles upgrades
+            echo "ℹ️  Supabase CLI version: $(supabase --version 2>/dev/null | head -n 1)"
+            ;;
+        9)
             echo "👋 Goodbye!"
             exit 0
             ;;
