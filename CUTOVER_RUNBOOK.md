@@ -71,7 +71,7 @@ Keep the gap between this step and Step 3 short. Anything submitted on the old f
 ### Step 2: apply the six migrations
 ```bash
 cd ~/Documents/github/CR_DataEntry
-supabase db push --dry-run --include-all
+supabase db push --remote --dry-run --include-all
 ```
 Expect exactly these six:
 - `20260929120000` (guest/DNF rules, the held one)
@@ -83,7 +83,7 @@ Expect exactly these six:
 
 Then apply them:
 ```bash
-supabase db push --include-all
+supabase db push --remote --include-all
 ```
 
 Check in Supabase Studio (SQL editor) on production. Expect `t | t | f | t`:

@@ -314,6 +314,6 @@ Once every box is ticked, the system is ready for the cutover runbook:
 
 1. Run the old ETL one last time.
 2. Swap in the new `index.html` and the workflow, and remove `rac_reports.py` option 4.
-3. Move the held migration into `migrations/`, then run `supabase db push --include-all`.
+3. Move the held migration into `migrations/`, then run `supabase db push --remote --include-all`.
 4. Merge Develop into main.
 5. Run the new GitHub Action once by hand.
