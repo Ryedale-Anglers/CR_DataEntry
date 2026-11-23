@@ -5,7 +5,7 @@ LOCAL_DB="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 DUMP_FILE="/tmp/prod_data.sql"
 
 echo "Dumping production data..."
-supabase db dump --data-only --linked --schema public,private -f "$DUMP_FILE"
+supabase db dump --data-only --remote --schema public,private -f "$DUMP_FILE"
 
 echo "Resetting local database to clean schema (reapplies migrations + any seed.sql)..."
 supabase db reset

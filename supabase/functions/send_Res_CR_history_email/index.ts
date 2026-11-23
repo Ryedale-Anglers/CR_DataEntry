@@ -5,6 +5,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Comments are written by members, so they must never be treated as HTML.
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -88,7 +97,7 @@ Deno.serve(async (req) => {
           guest: boolean | null;
         }) => {
           const dateStr = row.res_date;
-          const beat = row.beat ?? '';
+          const beat = escapeHtml(row.beat);
           const guestLabel = row.guest ? ' <em style="color:#888;font-size:0.85em">(guest)</em>' : '';
 
           if (row.dnf === true) {
@@ -113,7 +122,7 @@ Deno.serve(async (req) => {
             <td style="${tdStyle}">${beat}${guestLabel}</td>
             <td style="${tdCentreStyle}">${row.bt_released ?? 0}</td>
             <td style="${tdCentreStyle}">${row.grayling ?? 0}</td>
-            <td style="${tdStyle}">${row.comments ?? ''}</td>
+            <td style="${tdStyle}">${escapeHtml(row.comments)}</td>
           </tr>`;
         }).join('')
       : `<tr><td colspan="5" style="${tdStyle}">No reservations found for this season.</td></tr>`;
@@ -122,7 +131,7 @@ Deno.serve(async (req) => {
       <html>
         <body style="font-family:sans-serif;font-size:0.9em">
           <h3 style="color:#4a7c59">Ryedale Anglers Club</h3>
-          <h4>Reservations &amp; Catch Returns — ${cr_name}</h4>
+          <h4>Reservations &amp; Catch Returns — ${escapeHtml(cr_name)}</h4>
           <table style="border-collapse:collapse;width:100%;font-size:0.85em">
             <thead>${headerRow}</thead>
             <tbody>${tableRows}</tbody>
@@ -156,7 +165,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ message: `Email sent to ${email_address}` }),
+      JSON.stringify({ message: 'Email sent' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
 
