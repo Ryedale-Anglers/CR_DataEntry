@@ -180,8 +180,22 @@
     </div>
 
 <script>
-    const SUPABASE_URL = 'https://iwxpxphtqwjowzgzrflh.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs'; 
+    // Same local/production detection as index.html.
+    const hostname = window.location.hostname;
+    const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.endsWith('.local');
+
+    const SUPABASE_URL = isLocal
+        ? `http://${hostname === 'localhost' ? '127.0.0.1' : hostname}:54321`
+        : 'https://iwxpxphtqwjowzgzrflh.supabase.co';
+    const SUPABASE_KEY = isLocal
+        ? 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
+        : 'sb_publishable_KWnt1y9tOi7ZXCiTAMl9yQ_s3FmU3Bs';
+    console.log(`Running in ${isLocal ? 'LOCAL' : 'PRODUCTION'} mode`);
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     async function initGrid() {
@@ -251,7 +265,7 @@
                     if (data.comments && data.comments.trim() !== "") {
                         classes += " has-comments";
                         content += `<span class="comment-icon"></span>`;
-                        content += `<div class="popup-text"><strong>Note:</strong><br>${data.comments}</div>`;
+                        content += `<div class="popup-text"><strong>Note:</strong><br>${escapeHtml(data.comments)}</div>`;
                     }
                     datesElement.innerHTML += `<div class="${classes}">${content}</div>`;
                 } else {
@@ -263,6 +277,16 @@
         if (scrollContainer) {
             setTimeout(() => { scrollContainer.scrollLeft = scrollContainer.scrollWidth; }, 100);
         }
+    }
+
+    // Comments are written by members, so they must never be treated as HTML.
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     initGrid();

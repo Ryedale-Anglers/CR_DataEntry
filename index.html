@@ -597,12 +597,15 @@
                 return;
             }
 
-            // Placeholder: public.validate_member_surname(p_surname text) → boolean
-            const { data: memberOk, error: memberErr } = await supabaseClient
-                .rpc('validate_member_surname', { p_surname: surname });
+            // Checks the password and surname server-side, so surnames can't
+            // be tested without the club password.
+            const { data: reservations, error: memberErr } = await supabaseClient
+                .rpc('get_member_reservations', { p_password: password, p_surname: surname });
 
-            if (memberErr || !memberOk) {
-                showLoginError('Member surname not recognised. Please check the spelling.');
+            if (memberErr) {
+                showLoginError((memberErr.message || '').includes('Member surname not recognised')
+                    ? 'Member surname not recognised. Please check the spelling.'
+                    : 'Could not load your reservations. Please try again.');
                 return;
             }
 
@@ -613,7 +616,9 @@
 
             document.getElementById('loginCard').style.display = 'none';
             document.getElementById('reservationListSection').style.display = 'flex';
-            await fetchAndRenderReservations();
+            allReservations = reservations || [];
+            showAllReservations = false;
+            renderReservationList();
 
         } catch (err) {
             showLoginError('Connection error. Please try again.');
@@ -1152,6 +1157,20 @@
         </div>`;
     }
 
+    // Comments are written by members, so they must never be treated as HTML.
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Keep in step with chk_comments_no_links_or_html in the database.
+    const COMMENT_LINK_PATTERN = /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|<[a-z/!?]|\b[a-z0-9-]+\.(com|org|net|uk|io|info|biz|ru|xyz|ly)\b/i;
+    const COMMENT_LINK_MESSAGE = 'Please remove web links or HTML from your comments. If a full stop is joined to the next word, add a space after it.';
+
     function showReviewModal() {
         const formData = new FormData(form);
         const isDnf = form.dnf.checked;
@@ -1167,7 +1186,7 @@
                 <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
                 <strong>BT Retained:</strong> ${formData.get('v5')}<br>
                 <hr style="border:0; border-top:1px dashed #ccc;">
-                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+                <strong>Observations:</strong> ${escapeHtml(formData.get('comments') || 'None')}
             `;
         } else {
             const catchDate = currentMode === 'a' ? currentReservation.reservation_date : formData.get('date');
@@ -1180,7 +1199,7 @@
                 <span style="color:#c0392b; font-weight:bold; font-size:1rem;">Did Not Fish</span>
                 ${currentMode === 'a' ? guestCascadeWarningHTML(currentReservation) : ''}
                 <hr style="border:0; border-top:1px dashed #ccc;">
-                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+                <strong>Observations:</strong> ${escapeHtml(formData.get('comments') || 'None')}
             ` : `
                 <strong>Member:</strong> ${loggedInSurname}<br>
                 <strong>Date:</strong> ${catchDate}<br>
@@ -1191,7 +1210,7 @@
                 <strong>Rainbow:</strong> ${formData.get('v3')} | <strong>Other:</strong> ${formData.get('v4')}<br>
                 <strong>BT Retained:</strong> ${formData.get('v5')}<br>
                 <hr style="border:0; border-top:1px dashed #ccc;">
-                <strong>Observations:</strong> ${formData.get('comments') || 'None'}
+                <strong>Observations:</strong> ${escapeHtml(formData.get('comments') || 'None')}
             `;
         }
         document.getElementById('summaryContent').innerHTML = html;
@@ -1200,6 +1219,11 @@
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
+        if (COMMENT_LINK_PATTERN.test(form.comments.value)) {
+            alert(COMMENT_LINK_MESSAGE);
+            form.comments.focus();
+            return;
+        }
         const submitBtn = document.getElementById('submitBtn');
         const originalText = submitBtn.innerText;
         submitBtn.disabled = true;
@@ -1290,7 +1314,9 @@
 
         } catch (err) {
             console.error('Insert error:', err);
-            alert('Database error: ' + err.message);
+            alert((err.message || '').includes('chk_comments_no_links_or_html')
+                ? COMMENT_LINK_MESSAGE
+                : 'Database error: ' + err.message);
         } finally {
             finalConfirmBtn.disabled = false;
             finalConfirmBtn.textContent = 'Confirm';
