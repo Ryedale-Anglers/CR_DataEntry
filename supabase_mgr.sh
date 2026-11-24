@@ -24,9 +24,10 @@ show_menu() {
     echo "6) List Available Backups"
     echo "7) Restore local DB from .dump file"
     echo "8) Show Supabase CLI Version"
-    echo "9) Exit"
+    echo "9) Serve Edge Functions (Ctrl+C to stop)"
+    echo "10) Exit"
     echo "---------------------------"
-    echo -n "Choose an option [1-9]: "
+    echo -n "Choose an option [1-10]: "
 }
 
 while true; do
@@ -128,6 +129,16 @@ while true; do
             echo "ℹ️  Supabase CLI version: $(supabase --version 2>/dev/null | head -n 1)"
             ;;
         9)
+            # Must join the same network as the stack: on its own network the
+            # functions can't reach the database through the API gateway.
+            echo "⚡ Serving edge functions on $SUPABASE_NETWORK (Ctrl+C to stop and return to the menu)..."
+            env_args=()
+            [ -f supabase/functions/.env ] && env_args=(--env-file supabase/functions/.env)
+            trap 'echo ""' INT
+            supabase functions serve --network-id "$SUPABASE_NETWORK" "${env_args[@]}"
+            trap - INT
+            ;;
+        10)
             echo "👋 Goodbye!"
             exit 0
             ;;

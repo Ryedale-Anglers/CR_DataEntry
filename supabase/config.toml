@@ -8,6 +8,28 @@ enabled = false
 [analytics]
 enabled = false
 
+# Local sign-in settings for secretary.html. Production auth settings are made in
+# the Supabase dashboard, not from this file.
+[auth]
+site_url = "http://localhost:8000/secretary.html"
+additional_redirect_urls = ["http://localhost:8000/secretary.html", "http://127.0.0.1:8000/secretary.html"]
+# Invite-only: accounts are created by invitation, never by public sign-up.
+enable_signup = false
+# Also enforced by secretary.html, but this is the rule that counts.
+minimum_password_length = 12
+
+[auth.email]
+# Changing a password needs a code emailed to the account's address.
+secure_password_change = true
+
+[functions.send_catch_return_reminders]
+enabled = true
+# The function checks the caller itself with Supabase Auth, then against the
+# secretary access list. That works with both the legacy and the new API keys.
+verify_jwt = false
+import_map = "./functions/send_catch_return_reminders/deno.json"
+entrypoint = "./functions/send_catch_return_reminders/index.ts"
+
 [functions.send_Res_CR_history_email]
 enabled = true
 verify_jwt = false

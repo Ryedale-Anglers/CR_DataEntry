@@ -82,7 +82,16 @@ if [ $# -eq 1 ]; then
         exit 1
     fi
 else
-    DUMP_FILE=$(ls -t "$BACKUP_DIR"/cr_dataentry_*.dump 2>/dev/null | head -n 1)
+    # Newest by modification time. Not `ls -t | head -n 1`: once there are
+    # ~100 dumps, head closes the pipe early, ls is killed by SIGPIPE, and
+    # pipefail stops the script with exit code 141.
+    DUMP_FILE=""
+    for f in "$BACKUP_DIR"/cr_dataentry_*.dump; do
+        [ -f "$f" ] || continue
+        if [ -z "$DUMP_FILE" ] || [ "$f" -nt "$DUMP_FILE" ]; then
+            DUMP_FILE="$f"
+        fi
+    done
     if [ -z "$DUMP_FILE" ]; then
         echo "❌ No backup files found in $BACKUP_DIR"
         exit 1
